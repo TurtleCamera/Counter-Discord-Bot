@@ -295,20 +295,52 @@ async def set_counter(interaction: discord.Interaction, phrase: str, count: int)
     await interaction.response.send_message(f"✅ Counter for '{phrase}' in this channel has been set to {count}.", ephemeral=True)
 
 # -----------------------------
-# /append
+# Slash command: /append
 # -----------------------------
-@bot.tree.command(name="append", description="Append a tracked phrase to the end of each message", guild=guild)
-@app_commands.describe(phrase="A currently tracked phrase to append to messages")
-async def append_command(interaction: discord.Interaction, phrase: str):
+@bot.tree.command(
+    name="append",
+    description="Append a tracked phrase to the end of your messages",
+    guild=guild
+)
+@app_commands.describe(
+    phrase="A currently tracked phrase to append to messages (leave empty to remove)"
+)
+async def append_command(interaction: discord.Interaction, phrase: str = None):
     user_id = str(interaction.user.id)
     tracking_data = load_tracking()
     append_data = load_append()
-    if user_id not in tracking_data or phrase not in tracking_data[user_id]:
-        await interaction.response.send_message(f"❌ You can only append a phrase you are currently tracking.", ephemeral=True)
+
+    if phrase is None or phrase.strip() == "":
+        # Remove currently set append phrase
+        if user_id in append_data:
+            del append_data[user_id]
+            save_append(append_data)
+            await interaction.response.send_message(
+                "✅ Removed the append phrase from your messages.",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "❌ You don't have an append phrase set.",
+                ephemeral=True
+            )
         return
+
+    # Check that the phrase is tracked
+    if user_id not in tracking_data or phrase not in tracking_data[user_id]:
+        await interaction.response.send_message(
+            "❌ You can only append a phrase you are currently tracking.",
+            ephemeral=True
+        )
+        return
+
+    # Set the append phrase
     append_data[user_id] = phrase
     save_append(append_data)
-    await interaction.response.send_message(f"✅ Messages you send will now have '{phrase}' appended according to rules.", ephemeral=True)
+    await interaction.response.send_message(
+        f"✅ Messages you send will now have '{phrase}' appended according to rules.",
+        ephemeral=True
+    )
 
 # -----------------------------
 # /shortcut add
