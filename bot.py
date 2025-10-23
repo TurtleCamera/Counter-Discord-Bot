@@ -120,11 +120,16 @@ async def on_message(message):
     # Helper: Check if a phrase is at start or end
     # -----------------------------
     def phrase_at_edges(msg, phrase):
+        # Remove any " X<number>" counters from the message for checking
+        msg_clean = re.sub(r' X\d+', '', msg)
+
         # Start of message
         pattern_start = r'^\s*' + re.escape(phrase) + r'(\s|[.!?,;:]|$)'
         # End of message
         pattern_end = r'(\s|[.!?,;:]|^)' + re.escape(phrase) + r'\s*$'
-        return re.search(pattern_start, msg, re.IGNORECASE) or re.search(pattern_end, msg, re.IGNORECASE)
+
+        return re.search(pattern_start, msg_clean, re.IGNORECASE) or re.search(pattern_end, msg_clean, re.IGNORECASE)
+
 
     # -----------------------------
     # Apply shortcuts
