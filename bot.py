@@ -91,11 +91,11 @@ async def track(interaction: discord.Interaction, phrase: str):
     )
 
 # -----------------------------
-# Slash command: /remove (case-insensitive)
+# Slash command: /untrack (case-insensitive)
 # -----------------------------
-@bot.tree.command(name="remove", description="Stop tracking a phrase", guild=guild)
-@app_commands.describe(phrase="The phrase you want to remove from tracking")
-async def remove(interaction: discord.Interaction, phrase: str):
+@bot.tree.command(name="untrack", description="Stop tracking a phrase", guild=guild)
+@app_commands.describe(phrase="The phrase you want to stop tracking")
+async def untrack(interaction: discord.Interaction, phrase: str):
     data = load_tracking()
     user_id = str(interaction.user.id)
 
@@ -120,7 +120,7 @@ async def remove(interaction: discord.Interaction, phrase: str):
 
     save_tracking(data)
     await interaction.response.send_message(
-        f"✅ You have stopped tracking: '{matched_phrase}'", ephemeral=True
+        f"✅ You have stopped tracking: '{phrase}'", ephemeral=True
     )
 
 # -----------------------------
