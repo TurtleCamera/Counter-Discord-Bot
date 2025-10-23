@@ -447,6 +447,67 @@ async def list_command(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # -----------------------------
+# Slash command: /help
+# -----------------------------
+@bot.tree.command(
+    name="help",
+    description="Show a list of all available commands and what they do",
+    guild=guild
+)
+async def help_command(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="📜 CounterBot Commands",
+        description="Here's a summary of all the commands you can use:",
+        color=discord.Color.green()
+    )
+
+    embed.add_field(
+        name="/track <phrase>",
+        value="Start tracking a phrase. Counts will be appended to it when you send messages containing it.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="/untrack <phrase>",
+        value="Stop tracking a phrase.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="/set <phrase> <count>",
+        value="Set the counter for a tracked phrase in the current channel.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="/append [phrase]",
+        value="Append a phrase to the end of your messages. Leave the argument empty to remove the append phrase.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="/shortcut_add <phrase> <shortcut>",
+        value="Create a shortcut so typing <shortcut> will replace it with <phrase> in your messages.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="/shortcut_remove <phrase>",
+        value="Remove all shortcuts associated with a phrase.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="/list",
+        value="List all your tracked phrases and their counters in this channel, as well as your shortcuts.",
+        inline=False
+    )
+
+    embed.set_footer(text="All counters are per-channel. Messages are reposted to include counters if needed.")
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# -----------------------------
 # Bot ready
 # -----------------------------
 @bot.event
