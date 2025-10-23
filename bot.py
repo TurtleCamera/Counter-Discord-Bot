@@ -133,33 +133,31 @@ async def on_message(message):
     user_shortcuts = shortcuts_data.get(user_id, {})
     modified = message.content or ""
     updated = False
-    skip_append = False  # Flag to prevent append if shortcut replaced a tracked phrase at the end
+    skip_append = False  # Prevent append if a shortcut replaced a tracked phrase at the end
 
-    # Initialize counters
+    # -----------------------------
+    # Initialize counters if needed
+    # -----------------------------
     if user_id not in counters_data:
         counters_data[user_id] = {}
     if channel_id not in counters_data[user_id]:
         counters_data[user_id][channel_id] = {}
 
     # -----------------------------
-    # Apply shortcuts first
+    # Apply shortcuts
     # -----------------------------
     if modified:
         for shortcut, target_phrase in user_shortcuts.items():
-            # Match the shortcut as a whole word
             pattern = r'\b' + re.escape(shortcut) + r'\b'
 
             def replace_func(match):
                 nonlocal skip_append
                 replacement = target_phrase
-
-                # If the target phrase is tracked and this match occurs
-                # at the very end of the message (ignoring trailing punctuation),
-                # we set skip_append to True to prevent adding the append phrase
+                # If the target phrase is tracked and appears at the end (ignoring punctuation),
+                # skip appending the append phrase
                 if target_phrase in user_phrases:
                     if match.end() == len(modified.rstrip('.!?')):
                         skip_append = True
-
                 return replacement
 
             new_modified = re.sub(pattern, replace_func, modified, flags=re.IGNORECASE)
@@ -179,7 +177,8 @@ async def on_message(message):
                 index = content_lower.find(phrase_lower, start)
                 if index == -1:
                     break
-                # Increment counter
+
+                # Increment counter for this phrase in this channel
                 current_count = counters_data[user_id][channel_id].get(phrase, 0) + 1
                 counters_data[user_id][channel_id][phrase] = current_count
 
@@ -192,25 +191,29 @@ async def on_message(message):
                 content_lower = modified.lower()
 
     # -----------------------------
-    # Apply /append
+    # Apply append phrase
     # -----------------------------
     if append_phrase and not skip_append:
         content_to_check = modified.strip()
 
-        # Skip if fully enclosed
+        # Skip appending if the message is fully enclosed in (), {}, or []
         if not ((content_to_check.startswith('(') and content_to_check.endswith(')')) or
                 (content_to_check.startswith('{') and content_to_check.endswith('}')) or
                 (content_to_check.startswith('[') and content_to_check.endswith(']'))):
-            if not any(content_to_check.lower().startswith(p.lower()) or content_to_check.lower().endswith(p.lower()) for p in user_phrases):
 
-                # Only add counter if the append phrase is tracked
+            # Skip if the message starts or ends with a tracked phrase
+            if not any(content_to_check.lower().startswith(p.lower()) or content_to_check.lower().endswith(p.lower())
+                       for p in user_phrases):
+
+                # Only add a counter if the append phrase is tracked
                 if append_phrase in user_phrases:
                     append_count = counters_data[user_id][channel_id].get(append_phrase, 0) + 1
                     counters_data[user_id][channel_id][append_phrase] = append_count
                     append_text = f"{append_phrase} X{append_count}"
                 else:
-                    append_text = append_phrase  # untracked phrase, no counter
+                    append_text = append_phrase
 
+                # Preserve sentence-ending punctuation
                 m = re.search(r'([.!?]+)$', content_to_check)
                 if m:
                     punct = m.group(1)
@@ -221,21 +224,6 @@ async def on_message(message):
 
                 modified = f"{core}, {append_text}{punct}"
                 updated = True
-
-    # -----------------------------
-    # Capitalize tracked phrase at start (preserve rest of casing)
-    # -----------------------------
-    if modified:
-        for phrase in user_phrases:
-            # Match phrase at start (ignore case)
-            pattern = r'^(' + re.escape(phrase) + r')\b'
-
-            def preserve_case_capitalize(match):
-                text = match.group(1)
-                # Capitalize only first character, keep the rest unchanged
-                return text[0].upper() + text[1:]
-
-            modified = re.sub(pattern, preserve_case_capitalize, modified, flags=re.IGNORECASE)
 
     # -----------------------------
     # Delete original message and repost
