@@ -304,16 +304,25 @@ async def set_counter(interaction: discord.Interaction, phrase: str, count: int)
     if count < 0:
         await interaction.response.send_message("❌ Counter cannot be negative.", ephemeral=True)
         return
+
     user_id = str(interaction.user.id)
     channel_id = str(interaction.channel.id)
     counters_data = load_counters()
+
+    # Case-insensitive match for phrase key
+    matched_phrase = next((p for p in counters_data.get(user_id, {}).get(channel_id, {}) if p.lower() == phrase.lower()), phrase)
+
     if user_id not in counters_data:
         counters_data[user_id] = {}
     if channel_id not in counters_data[user_id]:
         counters_data[user_id][channel_id] = {}
-    counters_data[user_id][channel_id][phrase] = count
+
+    counters_data[user_id][channel_id][matched_phrase] = count
     save_counters(counters_data)
-    await interaction.response.send_message(f"✅ Counter for '{phrase}' in this channel has been set to {count}.", ephemeral=True)
+    await interaction.response.send_message(
+        f"✅ Counter for '{matched_phrase}' in this channel has been set to {count}.",
+        ephemeral=True
+    )
 
 # -----------------------------
 # Slash command: /append
@@ -355,7 +364,7 @@ async def append_command(interaction: discord.Interaction, phrase: str = None):
     )
 
 # -----------------------------
-# /shortcut add
+# /shortcut_add
 # -----------------------------
 @bot.tree.command(name="shortcut_add", description="Add a shortcut for a phrase", guild=guild)
 @app_commands.describe(
@@ -367,15 +376,21 @@ async def shortcut_add(interaction: discord.Interaction, phrase: str, shortcut: 
     shortcuts_data = load_shortcuts()
     if user_id not in shortcuts_data:
         shortcuts_data[user_id] = {}
-    if shortcut in shortcuts_data[user_id]:
+
+    # Case-insensitive check for duplicate shortcut
+    if any(s.lower() == shortcut.lower() for s in shortcuts_data[user_id].keys()):
         await interaction.response.send_message(f"❌ You already have a shortcut '{shortcut}'.", ephemeral=True)
         return
+
     shortcuts_data[user_id][shortcut] = phrase
     save_shortcuts(shortcuts_data)
-    await interaction.response.send_message(f"✅ Shortcut '{shortcut}' added for phrase '{phrase}'.", ephemeral=True)
+    await interaction.response.send_message(
+        f"✅ Shortcut '{shortcut}' added for phrase '{phrase}'.",
+        ephemeral=True
+    )
 
 # -----------------------------
-# /shortcut remove
+# /shortcut_remove
 # -----------------------------
 @bot.tree.command(name="shortcut_remove", description="Remove a shortcut for a phrase", guild=guild)
 @app_commands.describe(phrase="The phrase whose shortcut you want to remove")
@@ -383,16 +398,22 @@ async def shortcut_remove(interaction: discord.Interaction, phrase: str):
     user_id = str(interaction.user.id)
     shortcuts_data = load_shortcuts()
     if user_id not in shortcuts_data:
-        await interaction.response.send_message(f"❌ You don't have any shortcuts.", ephemeral=True)
+        await interaction.response.send_message("❌ You don't have any shortcuts.", ephemeral=True)
         return
-    to_remove = [s for s, p in shortcuts_data[user_id].items() if p == phrase]
+
+    # Case-insensitive match for target phrase
+    to_remove = [s for s, p in shortcuts_data[user_id].items() if p.lower() == phrase.lower()]
     if not to_remove:
         await interaction.response.send_message(f"❌ No shortcut found for phrase '{phrase}'.", ephemeral=True)
         return
+
     for s in to_remove:
         del shortcuts_data[user_id][s]
     save_shortcuts(shortcuts_data)
-    await interaction.response.send_message(f"✅ Removed shortcut(s) for phrase '{phrase}': {', '.join(to_remove)}", ephemeral=True)
+    await interaction.response.send_message(
+        f"✅ Removed shortcut(s) for phrase '{phrase}': {', '.join(to_remove)}",
+        ephemeral=True
+    )
 
 # -----------------------------
 # Slash command: /list
