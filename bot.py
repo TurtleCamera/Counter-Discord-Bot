@@ -101,70 +101,25 @@ async def on_message(message):
     channel_id = str(message.channel.id)
     tracking_data = load_tracking()
     counters_data = load_counters()
-    append_data = load_append()
+    append_data = load_append()  # Load append info
 
-    content = message.content or ""
-    modified = content
-    updated = False
-
-    # -----------------------------
-    # Apply append if user has a phrase set
-    # -----------------------------
-    if user_id in append_data:
-        append_phrase = append_data[user_id]
-        user_phrases = tracking_data.get(user_id, [])
-        sentences = re.split(r'(?<=[.!?])\s+', modified)
-        new_sentences = []
-
-        for sentence in sentences:
-            stripped = sentence.strip()
-
-            # Skip if sentence fully enclosed in (), {}, []
-            if re.match(r'^\([^\)]*\)$', stripped) or \
-               re.match(r'^\{[^\}]*\}$', stripped) or \
-               re.match(r'^\[[^\]]*\]$', stripped):
-                new_sentences.append(sentence)
-                continue
-
-            # Skip if sentence starts or ends with a tracked phrase
-            starts_or_ends_with_phrase = False
-            for phrase_check in user_phrases:
-                if stripped.lower().startswith(phrase_check.lower()) or \
-                   stripped.lower().endswith(phrase_check.lower()):
-                    starts_or_ends_with_phrase = True
-                    break
-            if starts_or_ends_with_phrase:
-                new_sentences.append(sentence)
-                continue
-
-            # Insert append_phrase before trailing punctuation
-            match = re.match(r'^(.*?)([.!?]+)?$', sentence)
-            if match:
-                core = match.group(1)
-                punct = match.group(2) or ''
-                new_sentence = core + " " + append_phrase + punct
-                new_sentences.append(new_sentence)
-                updated = True
-            else:
-                new_sentences.append(sentence)
-
-        modified = ' '.join(new_sentences)
-
-    # -----------------------------
-    # Process counters
-    # -----------------------------
     if user_id not in tracking_data:
         await bot.process_commands(message)
-        return
+        return  # user tracks nothing, do nothing
 
     user_phrases = tracking_data[user_id]
-    content_lower = modified.lower()
+    append_phrase = append_data.get(user_id, None)  # Get user's append phrase
+    content_lower = message.content.lower() if message.content else ""
+    modified = message.content or ""  # will hold the modified message
+    updated = False
 
+    # Initialize counters structure
     if user_id not in counters_data:
         counters_data[user_id] = {}
     if channel_id not in counters_data[user_id]:
         counters_data[user_id][channel_id] = {}
 
+    # Process each phrase left-to-right only if there is text
     if modified:
         for phrase in user_phrases:
             phrase_lower = phrase.lower()
@@ -173,30 +128,72 @@ async def on_message(message):
                 index = content_lower.find(phrase_lower, start)
                 if index == -1:
                     break
+                # Get current counter and increment first
                 current_count = counters_data[user_id][channel_id].get(phrase, 0) + 1
                 counters_data[user_id][channel_id][phrase] = current_count
 
+                # Append " X{current_count}" after the phrase in the original message
                 before = modified[:index + len(phrase)]
                 after = modified[index + len(phrase):]
                 modified = before + f" X{current_count}" + after
 
+                # Move start index past this occurrence (including appended counter)
                 start = index + len(phrase) + len(f" X{current_count}")
                 updated = True
+
+                # Update content_lower for case-insensitive search
                 content_lower = modified.lower()
 
     # -----------------------------
-    # Send via webhook if updated or attachments
+    # Apply /append phrase per sentence (with counter)
     # -----------------------------
+    if append_phrase:
+        # Initialize counter for append_phrase
+        append_count = counters_data[user_id][channel_id].get(append_phrase, 0)
+
+        content_to_check = modified.strip()
+        content_lower = content_to_check.lower()
+
+        # Skip if the whole message is enclosed by (), {}, or []
+        if (content_to_check.startswith('(') and content_to_check.endswith(')')) or \
+        (content_to_check.startswith('{') and content_to_check.endswith('}')) or \
+        (content_to_check.startswith('[') and content_to_check.endswith(']')):
+            pass  # do not append
+        else:
+            # Skip if message starts or ends with a tracked phrase
+            if not any(content_lower.startswith(p.lower()) or content_lower.endswith(p.lower()) for p in user_phrases):
+                # Increment counter
+                append_count += 1
+                counters_data[user_id][channel_id][append_phrase] = append_count
+
+                # Extract trailing punctuation (if any)
+                m = re.search(r'([.!?]+)$', content_to_check)
+                if m:
+                    punct = m.group(1)
+                    core = content_to_check[:-len(punct)]
+                else:
+                    punct = ''
+                    core = content_to_check
+
+                # Append phrase before punctuation with comma and space
+                modified = f"{core}, {append_phrase} X{append_count}{punct}"
+                updated = True
+
     if updated or message.attachments:
+        # Save updated counters if text was modified
         if updated:
             save_counters(counters_data)
 
+        # Prepare attachment files before deleting the message
         files = [await att.to_file() for att in message.attachments]
+
+        # Delete the original message
         await message.delete()
 
+        # Send via webhook (reusing channel webhook)
         webhook = await get_channel_webhook(message.channel)
         await webhook.send(
-            content=modified if updated else None,
+            content=modified if updated else None,  # None if only attachments
             username=message.author.display_name,
             avatar_url=message.author.display_avatar.url,
             wait=True,
