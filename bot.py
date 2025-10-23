@@ -222,6 +222,18 @@ async def on_message(message):
                 modified = f"{core}, {append_text}{punct}"
                 updated = True
 
+    # -----------------------------
+    # Capitalize tracked phrase at start
+    # -----------------------------
+    if modified:
+        for phrase in user_phrases:
+            # Match the phrase at the start of the message (ignoring case)
+            pattern = r'^(' + re.escape(phrase) + r')\b'
+            modified = re.sub(pattern, lambda m: m.group(1).capitalize(), modified, flags=re.IGNORECASE)
+
+    # -----------------------------
+    # Delete original message and repost
+    # -----------------------------
     if updated or message.attachments:
         if updated:
             save_counters(counters_data)
