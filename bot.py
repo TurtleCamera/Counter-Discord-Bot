@@ -59,6 +59,7 @@ guild = discord.Object(id=GUILD_ID)
 # Message-delete and repost logic with counters
 # -----------------------------
 @bot.event
+@bot.event
 async def on_message(message):
     if message.author.bot:
         return  # ignore bot messages
@@ -109,13 +110,14 @@ async def on_message(message):
         # Save updated counters
         save_counters(counters_data)
 
-        # Delete and repost message
+        # Delete and repost message via webhook (ignore replies)
         await message.delete()
         webhook = await message.channel.create_webhook(name=message.author.display_name)
         await webhook.send(
             modified,
             username=message.author.display_name,
-            avatar_url=message.author.display_avatar.url
+            avatar_url=message.author.display_avatar.url,
+            wait=True
         )
         await webhook.delete()
 
