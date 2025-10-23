@@ -187,6 +187,45 @@ async def untrack(interaction: discord.Interaction, phrase: str):
     )
 
 # -----------------------------
+# Slash command: /set
+# -----------------------------
+@bot.tree.command(
+    name="set",
+    description="Set the counter for a tracked phrase",
+    guild=guild
+)
+@app_commands.describe(
+    phrase="The phrase whose counter you want to set",
+    count="The number to set the counter to (0 resets the counter so the next message starts at 1)"
+)
+async def set_counter(interaction: discord.Interaction, phrase: str, count: int):
+    if count < 0:
+        await interaction.response.send_message(
+            "❌ Counter cannot be negative.",
+            ephemeral=True
+        )
+        return
+
+    user_id = str(interaction.user.id)
+    channel_id = str(interaction.channel.id)
+    counters_data = load_counters()
+
+    # Initialize data structures if needed
+    if user_id not in counters_data:
+        counters_data[user_id] = {}
+    if channel_id not in counters_data[user_id]:
+        counters_data[user_id][channel_id] = {}
+
+    # Set the counter for the phrase
+    counters_data[user_id][channel_id][phrase] = count
+
+    save_counters(counters_data)
+    await interaction.response.send_message(
+        f"✅ Counter for '{phrase}' in this channel has been set to {count}.",
+        ephemeral=True
+    )
+
+# -----------------------------
 # Bot ready
 # -----------------------------
 @bot.event
