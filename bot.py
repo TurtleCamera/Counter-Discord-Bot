@@ -202,7 +202,7 @@ async def on_message(message):
                 (content_to_check.startswith('{') and content_to_check.endswith('}')) or
                 (content_to_check.startswith('[') and content_to_check.endswith(']'))):
             if not any(content_to_check.lower().startswith(p.lower()) or content_to_check.lower().endswith(p.lower()) for p in user_phrases):
-                
+
                 # Only add counter if the append phrase is tracked
                 if append_phrase in user_phrases:
                     append_count = counters_data[user_id][channel_id].get(append_phrase, 0) + 1
@@ -218,18 +218,24 @@ async def on_message(message):
                 else:
                     core = content_to_check
                     punct = ''
-                
+
                 modified = f"{core}, {append_text}{punct}"
                 updated = True
 
     # -----------------------------
-    # Capitalize tracked phrase at start
+    # Capitalize tracked phrase at start (preserve rest of casing)
     # -----------------------------
     if modified:
         for phrase in user_phrases:
-            # Match the phrase at the start of the message (ignoring case)
+            # Match phrase at start (ignore case)
             pattern = r'^(' + re.escape(phrase) + r')\b'
-            modified = re.sub(pattern, lambda m: m.group(1).capitalize(), modified, flags=re.IGNORECASE)
+
+            def preserve_case_capitalize(match):
+                text = match.group(1)
+                # Capitalize only first character, keep the rest unchanged
+                return text[0].upper() + text[1:]
+
+            modified = re.sub(pattern, preserve_case_capitalize, modified, flags=re.IGNORECASE)
 
     # -----------------------------
     # Delete original message and repost
