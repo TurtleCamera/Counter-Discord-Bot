@@ -56,6 +56,23 @@ def save_counters(data):
 guild = discord.Object(id=GUILD_ID)
 
 # -----------------------------
+# Webhook management
+# -----------------------------
+channel_webhooks = {}
+WEBHOOK_NAME = "CounterBot Webhook"
+
+async def get_channel_webhook(channel):
+    channel_id = str(channel.id)
+    webhook = channel_webhooks.get(channel_id)
+    if webhook is None:
+        webhooks = await channel.webhooks()
+        webhook = next((wh for wh in webhooks if wh.name == WEBHOOK_NAME), None)
+        if webhook is None:
+            webhook = await channel.create_webhook(name=WEBHOOK_NAME)
+        channel_webhooks[channel_id] = webhook
+    return webhook
+
+# -----------------------------
 # Message-delete and repost logic with counters
 # -----------------------------
 @bot.event
@@ -119,8 +136,8 @@ async def on_message(message):
         # Delete the original message
         await message.delete()
 
-        # Send via webhook
-        webhook = await message.channel.create_webhook(name=message.author.display_name)
+        # Send via webhook (reusing channel webhook)
+        webhook = await get_channel_webhook(message.channel)
         await webhook.send(
             content=modified if updated else None,  # None if only attachments
             username=message.author.display_name,
@@ -128,7 +145,6 @@ async def on_message(message):
             wait=True,
             files=files
         )
-        await webhook.delete()
 
     await bot.process_commands(message)
 
