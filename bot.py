@@ -88,11 +88,35 @@ async def track(interaction: discord.Interaction, phrase: str):
     )
 
 # -----------------------------
+# Slash command: /remove
+# -----------------------------
+@bot.tree.command(name="remove", description="Stop tracking a phrase", guild=guild)
+@app_commands.describe(phrase="The phrase you want to remove from tracking")
+async def remove(interaction: discord.Interaction, phrase: str):
+    data = load_tracking()
+    user_id = str(interaction.user.id)
+
+    if user_id not in data or phrase not in data[user_id]:
+        await interaction.response.send_message(
+            f"❌ You are not tracking '{phrase}'!", ephemeral=True
+        )
+        return
+
+    data[user_id].remove(phrase)
+    # Clean up empty list to keep JSON tidy
+    if not data[user_id]:
+        del data[user_id]
+
+    save_tracking(data)
+    await interaction.response.send_message(
+        f"✅ You have stopped tracking: '{phrase}'", ephemeral=True
+    )
+
+# -----------------------------
 # Bot ready
 # -----------------------------
 @bot.event
 async def on_ready():
-    # Sync commands specifically to the guild for immediate input boxes
     await bot.tree.sync(guild=guild)
     print(f"✅ Logged in as {bot.user} and slash commands synced for guild {GUILD_ID}")
 
