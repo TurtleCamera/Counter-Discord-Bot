@@ -142,7 +142,7 @@ async def on_message(message):
     # -----------------------------
     if modified:
         for shortcut, target_phrase in user_shortcuts.items():
-            # Create a regex pattern to match the shortcut as a whole word
+            # Match the shortcut as a whole word
             pattern = r'\b' + re.escape(shortcut) + r'\b'
 
             def replace_func(match):
@@ -158,7 +158,6 @@ async def on_message(message):
 
                 return replacement
 
-            # Replace all occurrences of the shortcut with the target phrase
             new_modified = re.sub(pattern, replace_func, modified, flags=re.IGNORECASE)
             if new_modified != modified:
                 modified = new_modified
@@ -192,7 +191,6 @@ async def on_message(message):
     # Apply /append
     # -----------------------------
     if append_phrase and not skip_append:
-        append_count = counters_data[user_id][channel_id].get(append_phrase, 0)
         content_to_check = modified.strip()
 
         # Skip if fully enclosed
@@ -200,8 +198,14 @@ async def on_message(message):
                 (content_to_check.startswith('{') and content_to_check.endswith('}')) or
                 (content_to_check.startswith('[') and content_to_check.endswith(']'))):
             if not any(content_to_check.lower().startswith(p.lower()) or content_to_check.lower().endswith(p.lower()) for p in user_phrases):
-                append_count += 1
-                counters_data[user_id][channel_id][append_phrase] = append_count
+                
+                # Only add counter if the append phrase is tracked
+                if append_phrase in user_phrases:
+                    append_count = counters_data[user_id][channel_id].get(append_phrase, 0) + 1
+                    counters_data[user_id][channel_id][append_phrase] = append_count
+                    append_text = f"{append_phrase} X{append_count}"
+                else:
+                    append_text = append_phrase  # untracked phrase, no counter
 
                 m = re.search(r'([.!?]+)$', content_to_check)
                 if m:
@@ -210,7 +214,8 @@ async def on_message(message):
                 else:
                     core = content_to_check
                     punct = ''
-                modified = f"{core}, {append_phrase} X{append_count}{punct}"
+                
+                modified = f"{core}, {append_text}{punct}"
                 updated = True
 
     if updated or message.attachments:
@@ -299,15 +304,14 @@ async def set_counter(interaction: discord.Interaction, phrase: str, count: int)
 # -----------------------------
 @bot.tree.command(
     name="append",
-    description="Append a tracked phrase to the end of your messages",
+    description="Append a phrase to the end of your messages",
     guild=guild
 )
 @app_commands.describe(
-    phrase="A currently tracked phrase to append to messages (leave empty to remove)"
+    phrase="A phrase to append to messages (leave empty to remove)"
 )
 async def append_command(interaction: discord.Interaction, phrase: str = None):
     user_id = str(interaction.user.id)
-    tracking_data = load_tracking()
     append_data = load_append()
 
     if phrase is None or phrase.strip() == "":
@@ -326,19 +330,11 @@ async def append_command(interaction: discord.Interaction, phrase: str = None):
             )
         return
 
-    # Check that the phrase is tracked
-    if user_id not in tracking_data or phrase not in tracking_data[user_id]:
-        await interaction.response.send_message(
-            "❌ You can only append a phrase you are currently tracking.",
-            ephemeral=True
-        )
-        return
-
-    # Set the append phrase
+    # Set the append phrase without checking if it's tracked
     append_data[user_id] = phrase
     save_append(append_data)
     await interaction.response.send_message(
-        f"✅ Messages you send will now have '{phrase}' appended according to rules.",
+        f"✅ Messages you send will now have '{phrase}' appended to the end of the message.",
         ephemeral=True
     )
 
