@@ -21,6 +21,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 TRACK_FILE = "tracked_phrases.json"
 COUNTERS_FILE = "counters.json"
 APPEND_FILE = "append_phrases.json"
+SHORTCUT_FILE = "shortcuts.json"
 
 # -----------------------------
 # Helper functions for tracking
@@ -68,6 +69,21 @@ def save_append(data):
         json.dump(data, f, indent=4)
 
 # -----------------------------
+# Helper functions for shortcuts
+# -----------------------------
+def load_shortcuts():
+    if not os.path.exists(SHORTCUT_FILE):
+        with open(SHORTCUT_FILE, "w") as f:
+            json.dump({}, f)
+        return {}
+    with open(SHORTCUT_FILE, "r") as f:
+        return json.load(f)
+
+def save_shortcuts(data):
+    with open(SHORTCUT_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+# -----------------------------
 # Guild object for slash commands
 # -----------------------------
 guild = discord.Object(id=GUILD_ID)
@@ -90,110 +106,121 @@ async def get_channel_webhook(channel):
     return webhook
 
 # -----------------------------
-# Message-delete and repost logic with counters and append
+# Message-delete and repost logic
 # -----------------------------
 @bot.event
 async def on_message(message):
     if message.author.bot:
-        return  # ignore bot messages
+        return
 
     user_id = str(message.author.id)
     channel_id = str(message.channel.id)
     tracking_data = load_tracking()
     counters_data = load_counters()
-    append_data = load_append()  # Load append info
+    append_data = load_append()
+    shortcuts_data = load_shortcuts()
 
     if user_id not in tracking_data:
         await bot.process_commands(message)
-        return  # user tracks nothing, do nothing
+        return
 
     user_phrases = tracking_data[user_id]
-    append_phrase = append_data.get(user_id, None)  # Get user's append phrase
-    content_lower = message.content.lower() if message.content else ""
-    modified = message.content or ""  # will hold the modified message
+    append_phrase = append_data.get(user_id, None)
+    user_shortcuts = shortcuts_data.get(user_id, {})
+    modified = message.content or ""
     updated = False
+    skip_append = False  # Flag to prevent append if shortcut replaced a tracked phrase at the end
 
-    # Initialize counters structure
+    # Initialize counters
     if user_id not in counters_data:
         counters_data[user_id] = {}
     if channel_id not in counters_data[user_id]:
         counters_data[user_id][channel_id] = {}
 
-    # Process each phrase left-to-right only if there is text
+    # -----------------------------
+    # Apply shortcuts first
+    # -----------------------------
+    if modified:
+        for shortcut, target_phrase in user_shortcuts.items():
+            # Create a regex pattern to match the shortcut as a whole word
+            pattern = r'\b' + re.escape(shortcut) + r'\b'
+
+            def replace_func(match):
+                nonlocal skip_append
+                replacement = target_phrase
+
+                # If the target phrase is tracked and this match occurs
+                # at the very end of the message (ignoring trailing punctuation),
+                # we set skip_append to True to prevent adding the append phrase
+                if target_phrase in user_phrases:
+                    if match.end() == len(modified.rstrip('.!?')):
+                        skip_append = True
+
+                return replacement
+
+            # Replace all occurrences of the shortcut with the target phrase
+            new_modified = re.sub(pattern, replace_func, modified, flags=re.IGNORECASE)
+            if new_modified != modified:
+                modified = new_modified
+                updated = True
+
+    # -----------------------------
+    # Apply tracked phrase counters
+    # -----------------------------
     if modified:
         for phrase in user_phrases:
             phrase_lower = phrase.lower()
             start = 0
+            content_lower = modified.lower()
             while True:
                 index = content_lower.find(phrase_lower, start)
                 if index == -1:
                     break
-                # Get current counter and increment first
+                # Increment counter
                 current_count = counters_data[user_id][channel_id].get(phrase, 0) + 1
                 counters_data[user_id][channel_id][phrase] = current_count
 
-                # Append " X{current_count}" after the phrase in the original message
                 before = modified[:index + len(phrase)]
                 after = modified[index + len(phrase):]
                 modified = before + f" X{current_count}" + after
 
-                # Move start index past this occurrence (including appended counter)
                 start = index + len(phrase) + len(f" X{current_count}")
                 updated = True
-
-                # Update content_lower for case-insensitive search
                 content_lower = modified.lower()
 
     # -----------------------------
-    # Apply /append phrase per sentence (with counter)
+    # Apply /append
     # -----------------------------
-    if append_phrase:
-        # Initialize counter for append_phrase
+    if append_phrase and not skip_append:
         append_count = counters_data[user_id][channel_id].get(append_phrase, 0)
-
         content_to_check = modified.strip()
-        content_lower = content_to_check.lower()
 
-        # Skip if the whole message is enclosed by (), {}, or []
-        if (content_to_check.startswith('(') and content_to_check.endswith(')')) or \
-        (content_to_check.startswith('{') and content_to_check.endswith('}')) or \
-        (content_to_check.startswith('[') and content_to_check.endswith(']')):
-            pass  # do not append
-        else:
-            # Skip if message starts or ends with a tracked phrase
-            if not any(content_lower.startswith(p.lower()) or content_lower.endswith(p.lower()) for p in user_phrases):
-                # Increment counter
+        # Skip if fully enclosed
+        if not ((content_to_check.startswith('(') and content_to_check.endswith(')')) or
+                (content_to_check.startswith('{') and content_to_check.endswith('}')) or
+                (content_to_check.startswith('[') and content_to_check.endswith(']'))):
+            if not any(content_to_check.lower().startswith(p.lower()) or content_to_check.lower().endswith(p.lower()) for p in user_phrases):
                 append_count += 1
                 counters_data[user_id][channel_id][append_phrase] = append_count
 
-                # Extract trailing punctuation (if any)
                 m = re.search(r'([.!?]+)$', content_to_check)
                 if m:
                     punct = m.group(1)
                     core = content_to_check[:-len(punct)]
                 else:
-                    punct = ''
                     core = content_to_check
-
-                # Append phrase before punctuation with comma and space
+                    punct = ''
                 modified = f"{core}, {append_phrase} X{append_count}{punct}"
                 updated = True
 
     if updated or message.attachments:
-        # Save updated counters if text was modified
         if updated:
             save_counters(counters_data)
-
-        # Prepare attachment files before deleting the message
         files = [await att.to_file() for att in message.attachments]
-
-        # Delete the original message
         await message.delete()
-
-        # Send via webhook (reusing channel webhook)
         webhook = await get_channel_webhook(message.channel)
         await webhook.send(
-            content=modified if updated else None,  # None if only attachments
+            content=modified if updated else None,
             username=message.author.display_name,
             avatar_url=message.author.display_avatar.url,
             wait=True,
@@ -203,126 +230,125 @@ async def on_message(message):
     await bot.process_commands(message)
 
 # -----------------------------
-# Slash command: /track
+# /track
 # -----------------------------
 @bot.tree.command(name="track", description="Track a phrase", guild=guild)
 @app_commands.describe(phrase="The phrase you want to track")
 async def track(interaction: discord.Interaction, phrase: str):
     data = load_tracking()
     user_id = str(interaction.user.id)
-
     if user_id not in data:
         data[user_id] = []
 
-    existing_lower = [p.lower() for p in data[user_id]]
-    if phrase.lower() in existing_lower:
-        await interaction.response.send_message(
-            f"You are already tracking '{phrase}'!", ephemeral=True
-        )
+    if phrase.lower() in [p.lower() for p in data[user_id]]:
+        await interaction.response.send_message(f"You are already tracking '{phrase}'!", ephemeral=True)
         return
 
     data[user_id].append(phrase)
     save_tracking(data)
-    await interaction.response.send_message(
-        f"✅ You are now tracking: '{phrase}'", ephemeral=True
-    )
+    await interaction.response.send_message(f"✅ You are now tracking: '{phrase}'", ephemeral=True)
 
 # -----------------------------
-# Slash command: /untrack
+# /untrack
 # -----------------------------
 @bot.tree.command(name="untrack", description="Stop tracking a phrase", guild=guild)
 @app_commands.describe(phrase="The phrase you want to stop tracking")
 async def untrack(interaction: discord.Interaction, phrase: str):
     data = load_tracking()
     user_id = str(interaction.user.id)
-
     if user_id not in data:
-        await interaction.response.send_message(
-            f"❌ You are not tracking any phrases!", ephemeral=True
-        )
+        await interaction.response.send_message(f"❌ You are not tracking any phrases!", ephemeral=True)
         return
 
     matched_phrase = next((p for p in data[user_id] if p.lower() == phrase.lower()), None)
     if not matched_phrase:
-        await interaction.response.send_message(
-            f"❌ You are not tracking '{phrase}'!", ephemeral=True
-        )
+        await interaction.response.send_message(f"❌ You are not tracking '{phrase}'!", ephemeral=True)
         return
 
     data[user_id].remove(matched_phrase)
     if not data[user_id]:
         del data[user_id]
-
     save_tracking(data)
-    await interaction.response.send_message(
-        f"✅ You have stopped tracking: '{phrase}'", ephemeral=True
-    )
+    await interaction.response.send_message(f"✅ You have stopped tracking: '{phrase}'", ephemeral=True)
 
 # -----------------------------
-# Slash command: /set
+# /set
 # -----------------------------
-@bot.tree.command(
-    name="set",
-    description="Set the counter for a tracked phrase",
-    guild=guild
-)
+@bot.tree.command(name="set", description="Set the counter for a tracked phrase", guild=guild)
 @app_commands.describe(
     phrase="The phrase whose counter you want to set",
     count="The number to set the counter to (0 resets the counter so the next message starts at 1)"
 )
 async def set_counter(interaction: discord.Interaction, phrase: str, count: int):
     if count < 0:
-        await interaction.response.send_message(
-            "❌ Counter cannot be negative.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("❌ Counter cannot be negative.", ephemeral=True)
         return
-
     user_id = str(interaction.user.id)
     channel_id = str(interaction.channel.id)
     counters_data = load_counters()
-
     if user_id not in counters_data:
         counters_data[user_id] = {}
     if channel_id not in counters_data[user_id]:
         counters_data[user_id][channel_id] = {}
-
     counters_data[user_id][channel_id][phrase] = count
     save_counters(counters_data)
-    await interaction.response.send_message(
-        f"✅ Counter for '{phrase}' in this channel has been set to {count}.",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"✅ Counter for '{phrase}' in this channel has been set to {count}.", ephemeral=True)
 
 # -----------------------------
-# Slash command: /append
+# /append
 # -----------------------------
-@bot.tree.command(
-    name="append",
-    description="Append a tracked phrase to the end of each sentence",
-    guild=guild
-)
-@app_commands.describe(
-    phrase="A currently tracked phrase to append to sentences"
-)
+@bot.tree.command(name="append", description="Append a tracked phrase to the end of each message", guild=guild)
+@app_commands.describe(phrase="A currently tracked phrase to append to messages")
 async def append_command(interaction: discord.Interaction, phrase: str):
     user_id = str(interaction.user.id)
     tracking_data = load_tracking()
     append_data = load_append()
-
     if user_id not in tracking_data or phrase not in tracking_data[user_id]:
-        await interaction.response.send_message(
-            f"❌ You can only append a phrase you are currently tracking.",
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"❌ You can only append a phrase you are currently tracking.", ephemeral=True)
         return
-
     append_data[user_id] = phrase
     save_append(append_data)
-    await interaction.response.send_message(
-        f"✅ Messages you send will now have '{phrase}' appended to the end of sentences according to rules.",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"✅ Messages you send will now have '{phrase}' appended according to rules.", ephemeral=True)
+
+# -----------------------------
+# /shortcut add
+# -----------------------------
+@bot.tree.command(name="shortcut_add", description="Add a shortcut for a phrase", guild=guild)
+@app_commands.describe(
+    phrase="The phrase to replace with",
+    shortcut="The shortcut word to trigger replacement"
+)
+async def shortcut_add(interaction: discord.Interaction, phrase: str, shortcut: str):
+    user_id = str(interaction.user.id)
+    shortcuts_data = load_shortcuts()
+    if user_id not in shortcuts_data:
+        shortcuts_data[user_id] = {}
+    if shortcut in shortcuts_data[user_id]:
+        await interaction.response.send_message(f"❌ You already have a shortcut '{shortcut}'.", ephemeral=True)
+        return
+    shortcuts_data[user_id][shortcut] = phrase
+    save_shortcuts(shortcuts_data)
+    await interaction.response.send_message(f"✅ Shortcut '{shortcut}' added for phrase '{phrase}'.", ephemeral=True)
+
+# -----------------------------
+# /shortcut remove
+# -----------------------------
+@bot.tree.command(name="shortcut_remove", description="Remove a shortcut for a phrase", guild=guild)
+@app_commands.describe(phrase="The phrase whose shortcut you want to remove")
+async def shortcut_remove(interaction: discord.Interaction, phrase: str):
+    user_id = str(interaction.user.id)
+    shortcuts_data = load_shortcuts()
+    if user_id not in shortcuts_data:
+        await interaction.response.send_message(f"❌ You don't have any shortcuts.", ephemeral=True)
+        return
+    to_remove = [s for s, p in shortcuts_data[user_id].items() if p == phrase]
+    if not to_remove:
+        await interaction.response.send_message(f"❌ No shortcut found for phrase '{phrase}'.", ephemeral=True)
+        return
+    for s in to_remove:
+        del shortcuts_data[user_id][s]
+    save_shortcuts(shortcuts_data)
+    await interaction.response.send_message(f"✅ Removed shortcut(s) for phrase '{phrase}': {', '.join(to_remove)}", ephemeral=True)
 
 # -----------------------------
 # Bot ready
