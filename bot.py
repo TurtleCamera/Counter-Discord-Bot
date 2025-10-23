@@ -513,7 +513,7 @@ async def help_command(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     await bot.tree.sync(guild=guild)
-    print(f"✅ Logged in as {bot.user} and slash commands synced for guild {GUILD_ID}")
+    print(f"✅ Logged in as {bot.user} for guild {GUILD_ID}")
 
 # -----------------------------
 # Start the bot
