@@ -17,11 +17,15 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Paths to JSON files
-TRACK_FILE = "tracked_phrases.json"
-COUNTERS_FILE = "counters.json"
-APPEND_FILE = "append_phrases.json"
-SHORTCUT_FILE = "shortcuts.json"
+# Directory for all JSON files
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)  # Create directory if it doesn't exist
+
+# Paths to JSON files inside the data directory
+TRACK_FILE = os.path.join(DATA_DIR, "tracked_phrases.json")
+COUNTERS_FILE = os.path.join(DATA_DIR, "counters.json")
+APPEND_FILE = os.path.join(DATA_DIR, "append_phrases.json")
+SHORTCUT_FILE = os.path.join(DATA_DIR, "shortcuts.json")
 
 # -----------------------------
 # Helper functions for tracking
