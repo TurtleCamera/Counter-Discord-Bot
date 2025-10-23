@@ -1,6 +1,6 @@
 # Counter Discord Bot
 
-A Discord bot that allows users to tracks counters for various phrases (such as 👍, RIP, etc.) and automate using these phrases and counters in channels.
+A Discord bot that allows users to track counters for various phrases (such as 👍, RIP, etc.) and automate using these phrases and counters in channels.
 
 ---
 
@@ -62,6 +62,13 @@ Removes all shortcuts associated with a phrase.
 
 ---
 
+### `/repost [on/off]`
+Toggles the reposting feature.
+- When **on**, messages containing tracked phrases are deleted and reposted with counters and appended phrases.
+- When **off**, counters are still incremented, but messages are not reposted.
+
+---
+
 ## Example Usage
 ```plaintext
 /track :thumbsup:
@@ -69,5 +76,6 @@ Removes all shortcuts associated with a phrase.
 /set :thumbsup: 10
 /append :thumbsup:
 /shortcut_add :thumbsup: tu
+/repost off
 /list
 /help
