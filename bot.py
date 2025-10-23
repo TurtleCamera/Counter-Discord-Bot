@@ -379,6 +379,70 @@ async def shortcut_remove(interaction: discord.Interaction, phrase: str):
     await interaction.response.send_message(f"✅ Removed shortcut(s) for phrase '{phrase}': {', '.join(to_remove)}", ephemeral=True)
 
 # -----------------------------
+# Slash command: /list
+# -----------------------------
+@bot.tree.command(
+    name="list",
+    description="List all tracked phrases, their counters, and shortcuts in this channel",
+    guild=guild
+)
+async def list_command(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
+    channel_id = str(interaction.channel.id)
+
+    tracking_data = load_tracking()
+    counters_data = load_counters()
+    shortcuts_data = load_shortcuts()
+
+    embed = discord.Embed(
+        title=f"{interaction.user.display_name}'s Tracking Information",
+        color=discord.Color.blue()
+    )
+
+    # -----------------------------
+    # Tracked phrases with counters
+    # -----------------------------
+    user_phrases = tracking_data.get(user_id, [])
+    if user_phrases:
+        phrase_lines = []
+        for phrase in user_phrases:
+            count = counters_data.get(user_id, {}).get(channel_id, {}).get(phrase, 0)
+            phrase_lines.append(f"`{phrase}` — X{count}")
+        embed.add_field(
+            name="Tracked Phrases",
+            value="\n".join(phrase_lines),
+            inline=False
+        )
+    else:
+        embed.add_field(
+            name="Tracked Phrases",
+            value="You are not tracking any phrases.",
+            inline=False
+        )
+
+    # -----------------------------
+    # Shortcuts
+    # -----------------------------
+    user_shortcuts = shortcuts_data.get(user_id, {})
+    if user_shortcuts:
+        shortcut_lines = []
+        for shortcut, target in user_shortcuts.items():
+            shortcut_lines.append(f"`{shortcut}` → `{target}`")
+        embed.add_field(
+            name="Shortcuts",
+            value="\n".join(shortcut_lines),
+            inline=False
+        )
+    else:
+        embed.add_field(
+            name="Shortcuts",
+            value="You have no shortcuts set.",
+            inline=False
+        )
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# -----------------------------
 # Bot ready
 # -----------------------------
 @bot.event
