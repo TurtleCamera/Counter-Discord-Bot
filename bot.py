@@ -92,17 +92,19 @@ async def on_message(message):
                 index = content_lower.find(phrase_lower, start)
                 if index == -1:
                     break
-                # Get current counter
-                count = counters_data[user_id][channel_id].get(phrase, 1)
-                # Append " X{count}" after the phrase in the original message
+                # Get current counter and increment first
+                current_count = counters_data[user_id][channel_id].get(phrase, 0) + 1
+                counters_data[user_id][channel_id][phrase] = current_count
+
+                # Append " X{current_count}" after the phrase in the original message
                 before = modified[:index + len(phrase)]
                 after = modified[index + len(phrase):]
-                modified = before + f" X{count}" + after
-                # Increment counter
-                counters_data[user_id][channel_id][phrase] = count + 1
+                modified = before + f" X{current_count}" + after
+
                 # Move start index past this occurrence (including appended counter)
-                start = index + len(phrase) + len(f" X{count}")
+                start = index + len(phrase) + len(f" X{current_count}")
                 updated = True
+
                 # Update content_lower for case-insensitive search
                 content_lower = modified.lower()
 
