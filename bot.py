@@ -64,7 +64,7 @@ async def on_message(message):
     await bot.process_commands(message)
 
 # -----------------------------
-# Slash command: /track
+# Slash command: /track (case-insensitive)
 # -----------------------------
 @bot.tree.command(name="track", description="Track a phrase", guild=guild)
 @app_commands.describe(phrase="The phrase you want to track")
@@ -75,12 +75,15 @@ async def track(interaction: discord.Interaction, phrase: str):
     if user_id not in data:
         data[user_id] = []
 
-    if phrase in data[user_id]:
+    # Check case-insensitively if the phrase already exists
+    existing_lower = [p.lower() for p in data[user_id]]
+    if phrase.lower() in existing_lower:
         await interaction.response.send_message(
             f"You are already tracking '{phrase}'!", ephemeral=True
         )
         return
 
+    # Store the phrase exactly as typed
     data[user_id].append(phrase)
     save_tracking(data)
     await interaction.response.send_message(
@@ -88,7 +91,7 @@ async def track(interaction: discord.Interaction, phrase: str):
     )
 
 # -----------------------------
-# Slash command: /remove
+# Slash command: /remove (case-insensitive)
 # -----------------------------
 @bot.tree.command(name="remove", description="Stop tracking a phrase", guild=guild)
 @app_commands.describe(phrase="The phrase you want to remove from tracking")
@@ -96,20 +99,28 @@ async def remove(interaction: discord.Interaction, phrase: str):
     data = load_tracking()
     user_id = str(interaction.user.id)
 
-    if user_id not in data or phrase not in data[user_id]:
+    if user_id not in data:
+        await interaction.response.send_message(
+            f"❌ You are not tracking any phrases!", ephemeral=True
+        )
+        return
+
+    # Find the actual stored phrase in a case-insensitive way
+    matched_phrase = next((p for p in data[user_id] if p.lower() == phrase.lower()), None)
+    if not matched_phrase:
         await interaction.response.send_message(
             f"❌ You are not tracking '{phrase}'!", ephemeral=True
         )
         return
 
-    data[user_id].remove(phrase)
-    # Clean up empty list to keep JSON tidy
+    # Remove the matched phrase
+    data[user_id].remove(matched_phrase)
     if not data[user_id]:
         del data[user_id]
 
     save_tracking(data)
     await interaction.response.send_message(
-        f"✅ You have stopped tracking: '{phrase}'", ephemeral=True
+        f"✅ You have stopped tracking: '{matched_phrase}'", ephemeral=True
     )
 
 # -----------------------------
