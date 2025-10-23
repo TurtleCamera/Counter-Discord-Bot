@@ -59,7 +59,6 @@ guild = discord.Object(id=GUILD_ID)
 # Message-delete and repost logic with counters
 # -----------------------------
 @bot.event
-@bot.event
 async def on_message(message):
     if message.author.bot:
         return  # ignore bot messages
@@ -74,8 +73,8 @@ async def on_message(message):
         return  # user tracks nothing, do nothing
 
     user_phrases = tracking_data[user_id]
-    content_lower = message.content.lower()
-    modified = message.content  # will hold the modified message
+    content_lower = message.content.lower() if message.content else ""
+    modified = message.content or ""  # will hold the modified message
     updated = False
 
     # Initialize counters structure
@@ -84,40 +83,48 @@ async def on_message(message):
     if channel_id not in counters_data[user_id]:
         counters_data[user_id][channel_id] = {}
 
-    # Process each phrase left-to-right
-    for phrase in user_phrases:
-        phrase_lower = phrase.lower()
-        start = 0
-        while True:
-            index = content_lower.find(phrase_lower, start)
-            if index == -1:
-                break
-            # Get current counter
-            count = counters_data[user_id][channel_id].get(phrase, 1)
-            # Append " X{count}" after the phrase in the original message
-            before = modified[:index + len(phrase)]
-            after = modified[index + len(phrase):]
-            modified = before + f" X{count}" + after
-            # Increment counter
-            counters_data[user_id][channel_id][phrase] = count + 1
-            # Move start index past this occurrence (including appended counter)
-            start = index + len(phrase) + len(f" X{count}")
-            updated = True
-            # Also update content_lower so subsequent searches align with original case-insensitive matching
-            content_lower = modified.lower()
+    # Process each phrase left-to-right only if there is text
+    if modified:
+        for phrase in user_phrases:
+            phrase_lower = phrase.lower()
+            start = 0
+            while True:
+                index = content_lower.find(phrase_lower, start)
+                if index == -1:
+                    break
+                # Get current counter
+                count = counters_data[user_id][channel_id].get(phrase, 1)
+                # Append " X{count}" after the phrase in the original message
+                before = modified[:index + len(phrase)]
+                after = modified[index + len(phrase):]
+                modified = before + f" X{count}" + after
+                # Increment counter
+                counters_data[user_id][channel_id][phrase] = count + 1
+                # Move start index past this occurrence (including appended counter)
+                start = index + len(phrase) + len(f" X{count}")
+                updated = True
+                # Update content_lower for case-insensitive search
+                content_lower = modified.lower()
 
-    if updated:
-        # Save updated counters
-        save_counters(counters_data)
+    if updated or message.attachments:
+        # Save updated counters if text was modified
+        if updated:
+            save_counters(counters_data)
 
-        # Delete and repost message via webhook (ignore replies)
+        # Prepare attachment files before deleting the message
+        files = [await att.to_file() for att in message.attachments]
+
+        # Delete the original message
         await message.delete()
+
+        # Send via webhook
         webhook = await message.channel.create_webhook(name=message.author.display_name)
         await webhook.send(
-            modified,
+            content=modified if updated else None,  # None if only attachments
             username=message.author.display_name,
             avatar_url=message.author.display_avatar.url,
-            wait=True
+            wait=True,
+            files=files
         )
         await webhook.delete()
 
