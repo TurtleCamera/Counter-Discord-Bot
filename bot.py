@@ -378,7 +378,7 @@ async def list_command(interaction: discord.Interaction):
 
     user_phrases = tracking_data.get(user_id, [])
     if user_phrases:
-        phrase_lines = [f"`{p}` — X{counters_data.get(user_id, {}).get(channel_id, {}).get(p,0)}" for p in user_phrases]
+        phrase_lines = [f"`{p}` X{counters_data.get(user_id, {}).get(channel_id, {}).get(p,0)}" for p in user_phrases]
         embed.add_field(name="Tracked Phrases", value="\n".join(phrase_lines), inline=False)
     else:
         embed.add_field(name="Tracked Phrases", value="You are not tracking any phrases.", inline=False)
