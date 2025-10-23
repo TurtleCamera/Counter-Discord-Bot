@@ -45,8 +45,7 @@ Sets the counter of a phrase to the specified value for the current channel.
 Appends a phrase to the end of your messages.
 - Running the command without arguments **removes** the append phrase.
 - The append is **cancelled** if:
-    - A shortcut at the end of a message was replaced with a tracked phrase.
-    - A tracked phrase is already at the start or end of the message.
+    - A tracked phrase is already at the start or end of the message (including shortcuts that turn into tracked phrases).
     - The message is fully enclosed in `()`, `[]`, or `{}`.
 
 ---

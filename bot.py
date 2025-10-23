@@ -116,7 +116,19 @@ async def on_message(message):
     if channel_id not in counters_data[user_id]:
         counters_data[user_id][channel_id] = {}
 
+    # -----------------------------
+    # Helper: Check if a phrase is at start or end
+    # -----------------------------
+    def phrase_at_edges(msg, phrase):
+        # Start of message
+        pattern_start = r'^\s*' + re.escape(phrase) + r'(\s|[.!?,;:]|$)'
+        # End of message
+        pattern_end = r'(\s|[.!?,;:]|^)' + re.escape(phrase) + r'\s*$'
+        return re.search(pattern_start, msg, re.IGNORECASE) or re.search(pattern_end, msg, re.IGNORECASE)
+
+    # -----------------------------
     # Apply shortcuts
+    # -----------------------------
     if modified:
         for shortcut, target_phrase in user_shortcuts.items():
             pattern = r'\b' + re.escape(shortcut) + r'\b'
@@ -134,7 +146,9 @@ async def on_message(message):
                 modified = new_modified
                 updated = True
 
-    # Apply tracked phrase counters (only whole words / punctuation)
+    # -----------------------------
+    # Apply tracked phrase counters (whole words / punctuation)
+    # -----------------------------
     if modified:
         for phrase in user_phrases:
             pattern = r'(?<!\w)(' + re.escape(phrase) + r')(?!\w)'
@@ -153,13 +167,17 @@ async def on_message(message):
                 offset += len(insert_text)
                 updated = True
 
+    # -----------------------------
     # Apply append phrase
+    # -----------------------------
     if append_phrase and not skip_append:
         content_to_check = modified.strip()
+        # Skip if fully enclosed
         if not ((content_to_check.startswith('(') and content_to_check.endswith(')')) or
                 (content_to_check.startswith('{') and content_to_check.endswith('}')) or
                 (content_to_check.startswith('[') and content_to_check.endswith(']'))):
-            if not any(re.search(rf'(?<!\w){re.escape(p)}(?!\w)', content_to_check, re.IGNORECASE) for p in user_phrases):
+            # Skip if any tracked phrase is at the start or end
+            if not any(phrase_at_edges(content_to_check, p) for p in user_phrases):
                 if append_phrase in user_phrases:
                     append_count = counters_data[user_id][channel_id].get(append_phrase, 0) + 1
                     counters_data[user_id][channel_id][append_phrase] = append_count
@@ -178,7 +196,9 @@ async def on_message(message):
                 modified = f"{core}, {append_text}{punct}"
                 updated = True
 
+    # -----------------------------
     # Delete/repost only if enabled
+    # -----------------------------
     if updated or message.attachments:
         if updated:
             save_counters(counters_data)
@@ -381,10 +401,10 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(name="/track <phrase>", value="Start tracking a phrase.", inline=False)
     embed.add_field(name="/untrack <phrase>", value="Stop tracking a phrase.", inline=False)
     embed.add_field(name="/set <phrase> <count>", value="Set counter in this channel.", inline=False)
-    embed.add_field(name="/append [phrase]", value="Append a phrase to your messages.", inline=False)
+    embed.add_field(name="/append <phrase>", value="Append a phrase to your messages.", inline=False)
     embed.add_field(name="/shortcut_add <phrase> <shortcut>", value="Add a shortcut.", inline=False)
     embed.add_field(name="/shortcut_remove <phrase>", value="Remove shortcuts.", inline=False)
-    embed.add_field(name="/repost <on/off>", value="Toggle reposting messages.", inline=False)
+    embed.add_field(name="/repost [on/off]", value="Toggle reposting messages.", inline=False)
     embed.add_field(name="/list", value="List tracked phrases and shortcuts.", inline=False)
     embed.set_footer(text="Counters are per-channel. Messages are reposted only if enabled.")
     await interaction.response.send_message(embed=embed, ephemeral=True)
