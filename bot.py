@@ -19,76 +19,47 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Directory for all JSON files
 DATA_DIR = "data"
-os.makedirs(DATA_DIR, exist_ok=True)  # Create directory if it doesn't exist
+os.makedirs(DATA_DIR, exist_ok=True)
 
-# Paths to JSON files inside the data directory
+# Paths to JSON files
 TRACK_FILE = os.path.join(DATA_DIR, "tracked_phrases.json")
 COUNTERS_FILE = os.path.join(DATA_DIR, "counters.json")
 APPEND_FILE = os.path.join(DATA_DIR, "append_phrases.json")
 SHORTCUT_FILE = os.path.join(DATA_DIR, "shortcuts.json")
+REPOST_FILE = os.path.join(DATA_DIR, "repost.json")  # For repost toggle
 
 # -----------------------------
-# Helper functions for tracking
+# Helper functions
 # -----------------------------
-def load_tracking():
-    if not os.path.exists(TRACK_FILE):
-        with open(TRACK_FILE, "w") as f:
+def load_json(path):
+    if not os.path.exists(path):
+        with open(path, "w") as f:
             json.dump({}, f)
         return {}
-    with open(TRACK_FILE, "r") as f:
+    with open(path, "r") as f:
         return json.load(f)
 
-def save_tracking(data):
-    with open(TRACK_FILE, "w") as f:
+def save_json(path, data):
+    with open(path, "w") as f:
         json.dump(data, f, indent=4)
 
-# -----------------------------
-# Helper functions for counters
-# -----------------------------
-def load_counters():
-    if not os.path.exists(COUNTERS_FILE):
-        with open(COUNTERS_FILE, "w") as f:
-            json.dump({}, f)
-        return {}
-    with open(COUNTERS_FILE, "r") as f:
-        return json.load(f)
+def load_tracking(): return load_json(TRACK_FILE)
+def save_tracking(data): save_json(TRACK_FILE, data)
 
-def save_counters(data):
-    with open(COUNTERS_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+def load_counters(): return load_json(COUNTERS_FILE)
+def save_counters(data): save_json(COUNTERS_FILE, data)
 
-# -----------------------------
-# Helper functions for append
-# -----------------------------
-def load_append():
-    if not os.path.exists(APPEND_FILE):
-        with open(APPEND_FILE, "w") as f:
-            json.dump({}, f)
-        return {}
-    with open(APPEND_FILE, "r") as f:
-        return json.load(f)
+def load_append(): return load_json(APPEND_FILE)
+def save_append(data): save_json(APPEND_FILE, data)
 
-def save_append(data):
-    with open(APPEND_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+def load_shortcuts(): return load_json(SHORTCUT_FILE)
+def save_shortcuts(data): save_json(SHORTCUT_FILE, data)
+
+def load_repost(): return load_json(REPOST_FILE)
+def save_repost(data): save_json(REPOST_FILE, data)
 
 # -----------------------------
-# Helper functions for shortcuts
-# -----------------------------
-def load_shortcuts():
-    if not os.path.exists(SHORTCUT_FILE):
-        with open(SHORTCUT_FILE, "w") as f:
-            json.dump({}, f)
-        return {}
-    with open(SHORTCUT_FILE, "r") as f:
-        return json.load(f)
-
-def save_shortcuts(data):
-    with open(SHORTCUT_FILE, "w") as f:
-        json.dump(data, f, indent=4)
-
-# -----------------------------
-# Guild object for slash commands
+# Guild object
 # -----------------------------
 guild = discord.Object(id=GUILD_ID)
 
@@ -110,7 +81,7 @@ async def get_channel_webhook(channel):
     return webhook
 
 # -----------------------------
-# Message-delete and repost logic
+# Message handling
 # -----------------------------
 @bot.event
 async def on_message(message):
@@ -119,10 +90,14 @@ async def on_message(message):
 
     user_id = str(message.author.id)
     channel_id = str(message.channel.id)
+
     tracking_data = load_tracking()
     counters_data = load_counters()
     append_data = load_append()
     shortcuts_data = load_shortcuts()
+    repost_data = load_repost()
+
+    repost_enabled = repost_data.get(user_id, True)  # default to True
 
     if user_id not in tracking_data:
         await bot.process_commands(message)
@@ -133,19 +108,15 @@ async def on_message(message):
     user_shortcuts = shortcuts_data.get(user_id, {})
     modified = message.content or ""
     updated = False
-    skip_append = False  # Prevent append if shortcut replaced a tracked phrase at the end
+    skip_append = False
 
-    # -----------------------------
-    # Initialize counters if needed
-    # -----------------------------
+    # Initialize counters
     if user_id not in counters_data:
         counters_data[user_id] = {}
     if channel_id not in counters_data[user_id]:
         counters_data[user_id][channel_id] = {}
 
-    # -----------------------------
     # Apply shortcuts
-    # -----------------------------
     if modified:
         for shortcut, target_phrase in user_shortcuts.items():
             pattern = r'\b' + re.escape(shortcut) + r'\b'
@@ -153,8 +124,6 @@ async def on_message(message):
             def replace_func(match):
                 nonlocal skip_append
                 replacement = target_phrase
-                # If the target phrase is tracked and appears at the end (ignoring punctuation),
-                # skip appending the append phrase
                 if target_phrase in user_phrases:
                     if match.end() == len(modified.rstrip('.!?')):
                         skip_append = True
@@ -165,50 +134,32 @@ async def on_message(message):
                 modified = new_modified
                 updated = True
 
-    # -----------------------------
-    # Apply tracked phrase counters
-    # -----------------------------
+    # Apply tracked phrase counters (only whole words / punctuation)
     if modified:
         for phrase in user_phrases:
-            # Match only standalone phrases (surrounded by word boundaries or punctuation/whitespace)
             pattern = r'(?<!\w)(' + re.escape(phrase) + r')(?!\w)'
             matches = list(re.finditer(pattern, modified, flags=re.IGNORECASE))
             if not matches:
                 continue
-
-            # We’ll rebuild the string with counters appended after each match
             offset = 0
             for match in matches:
                 start, end = match.span()
                 start += offset
                 end += offset
-
-                # Increment counter
                 current_count = counters_data[user_id][channel_id].get(phrase, 0) + 1
                 counters_data[user_id][channel_id][phrase] = current_count
-
                 insert_text = f" X{current_count}"
                 modified = modified[:end] + insert_text + modified[end:]
                 offset += len(insert_text)
                 updated = True
 
-    # -----------------------------
     # Apply append phrase
-    # -----------------------------
     if append_phrase and not skip_append:
         content_to_check = modified.strip()
-
-        # Skip appending if the message is fully enclosed in (), {}, or []
         if not ((content_to_check.startswith('(') and content_to_check.endswith(')')) or
                 (content_to_check.startswith('{') and content_to_check.endswith('}')) or
                 (content_to_check.startswith('[') and content_to_check.endswith(']'))):
-
-            # Skip if message starts or ends with a tracked phrase
-            if not any(
-                re.search(rf'(?<!\w){re.escape(p)}(?!\w)', content_to_check, re.IGNORECASE)
-                for p in user_phrases
-            ):
-                # Only add a counter if the append phrase is tracked
+            if not any(re.search(rf'(?<!\w){re.escape(p)}(?!\w)', content_to_check, re.IGNORECASE) for p in user_phrases):
                 if append_phrase in user_phrases:
                     append_count = counters_data[user_id][channel_id].get(append_phrase, 0) + 1
                     counters_data[user_id][channel_id][append_phrase] = append_count
@@ -216,7 +167,6 @@ async def on_message(message):
                 else:
                     append_text = append_phrase
 
-                # Preserve sentence-ending punctuation
                 m = re.search(r'([.!?]+)$', content_to_check)
                 if m:
                     punct = m.group(1)
@@ -228,22 +178,21 @@ async def on_message(message):
                 modified = f"{core}, {append_text}{punct}"
                 updated = True
 
-    # -----------------------------
-    # Delete original message and repost
-    # -----------------------------
+    # Delete/repost only if enabled
     if updated or message.attachments:
         if updated:
             save_counters(counters_data)
         files = [await att.to_file() for att in message.attachments]
-        await message.delete()
-        webhook = await get_channel_webhook(message.channel)
-        await webhook.send(
-            content=modified if updated else None,
-            username=message.author.display_name,
-            avatar_url=message.author.display_avatar.url,
-            wait=True,
-            files=files
-        )
+        if repost_enabled:
+            await message.delete()
+            webhook = await get_channel_webhook(message.channel)
+            await webhook.send(
+                content=modified if updated else None,
+                username=message.author.display_name,
+                avatar_url=message.author.display_avatar.url,
+                wait=True,
+                files=files
+            )
 
     await bot.process_commands(message)
 
@@ -275,14 +224,12 @@ async def untrack(interaction: discord.Interaction, phrase: str):
     data = load_tracking()
     user_id = str(interaction.user.id)
     if user_id not in data:
-        await interaction.response.send_message(f"❌ You are not tracking any phrases!", ephemeral=True)
+        await interaction.response.send_message("❌ You are not tracking any phrases!", ephemeral=True)
         return
-
     matched_phrase = next((p for p in data[user_id] if p.lower() == phrase.lower()), None)
     if not matched_phrase:
         await interaction.response.send_message(f"❌ You are not tracking '{phrase}'!", ephemeral=True)
         return
-
     data[user_id].remove(matched_phrase)
     if not data[user_id]:
         del data[user_id]
@@ -316,75 +263,46 @@ async def set_counter(interaction: discord.Interaction, phrase: str, count: int)
 
     counters_data[user_id][channel_id][matched_phrase] = count
     save_counters(counters_data)
-    await interaction.response.send_message(
-        f"✅ Counter for '{matched_phrase}' in this channel has been set to {count}.",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"✅ Counter for '{matched_phrase}' in this channel has been set to {count}.", ephemeral=True)
 
 # -----------------------------
-# Slash command: /append
+# /append
 # -----------------------------
-@bot.tree.command(
-    name="append",
-    description="Append a phrase to the end of your messages",
-    guild=guild
-)
-@app_commands.describe(
-    phrase="A phrase to append to messages (leave empty to remove)"
-)
+@bot.tree.command(name="append", description="Append a phrase to the end of your messages", guild=guild)
+@app_commands.describe(phrase="A phrase to append to messages (leave empty to remove)")
 async def append_command(interaction: discord.Interaction, phrase: str = None):
     user_id = str(interaction.user.id)
     append_data = load_append()
-
     if phrase is None or phrase.strip() == "":
-        # Remove currently set append phrase
         if user_id in append_data:
             del append_data[user_id]
             save_append(append_data)
-            await interaction.response.send_message(
-                "✅ Removed the append phrase from your messages.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("✅ Removed the append phrase from your messages.", ephemeral=True)
         else:
-            await interaction.response.send_message(
-                "❌ You don't have an append phrase set.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("❌ You don't have an append phrase set.", ephemeral=True)
         return
-
-    # Set the append phrase without checking if it's tracked
     append_data[user_id] = phrase
     save_append(append_data)
-    await interaction.response.send_message(
-        f"✅ Messages you send will now have '{phrase}' appended to the end of the message.",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"✅ Messages you send will now have '{phrase}' appended.", ephemeral=True)
 
 # -----------------------------
 # /shortcut_add
 # -----------------------------
 @bot.tree.command(name="shortcut_add", description="Add a shortcut for a phrase", guild=guild)
-@app_commands.describe(
-    phrase="The phrase to replace with",
-    shortcut="The shortcut word to trigger replacement"
-)
+@app_commands.describe(phrase="The phrase to replace with", shortcut="The shortcut word to trigger replacement")
 async def shortcut_add(interaction: discord.Interaction, phrase: str, shortcut: str):
     user_id = str(interaction.user.id)
     shortcuts_data = load_shortcuts()
     if user_id not in shortcuts_data:
         shortcuts_data[user_id] = {}
 
-    # Case-insensitive check for duplicate shortcut
-    if any(s.lower() == shortcut.lower() for s in shortcuts_data[user_id].keys()):
+    if any(s.lower() == shortcut.lower() for s in shortcuts_data[user_id]):
         await interaction.response.send_message(f"❌ You already have a shortcut '{shortcut}'.", ephemeral=True)
         return
 
     shortcuts_data[user_id][shortcut] = phrase
     save_shortcuts(shortcuts_data)
-    await interaction.response.send_message(
-        f"✅ Shortcut '{shortcut}' added for phrase '{phrase}'.",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"✅ Shortcut '{shortcut}' added for phrase '{phrase}'.", ephemeral=True)
 
 # -----------------------------
 # /shortcut_remove
@@ -398,7 +316,6 @@ async def shortcut_remove(interaction: discord.Interaction, phrase: str):
         await interaction.response.send_message("❌ You don't have any shortcuts.", ephemeral=True)
         return
 
-    # Case-insensitive match for target phrase
     to_remove = [s for s, p in shortcuts_data[user_id].items() if p.lower() == phrase.lower()]
     if not to_remove:
         await interaction.response.send_message(f"❌ No shortcut found for phrase '{phrase}'.", ephemeral=True)
@@ -407,134 +324,69 @@ async def shortcut_remove(interaction: discord.Interaction, phrase: str):
     for s in to_remove:
         del shortcuts_data[user_id][s]
     save_shortcuts(shortcuts_data)
-    await interaction.response.send_message(
-        f"✅ Removed shortcut(s) for phrase '{phrase}': {', '.join(to_remove)}",
-        ephemeral=True
-    )
+    await interaction.response.send_message(f"✅ Removed shortcut(s) for phrase '{phrase}': {', '.join(to_remove)}", ephemeral=True)
 
 # -----------------------------
-# Slash command: /list
+# /repost toggle
 # -----------------------------
-@bot.tree.command(
-    name="list",
-    description="List all tracked phrases, their counters, and shortcuts in this channel",
-    guild=guild
-)
+@bot.tree.command(name="repost", description="Toggle message reposting on or off", guild=guild)
+@app_commands.describe(toggle="Enable or disable reposting (on/off)")
+async def repost_command(interaction: discord.Interaction, toggle: str):
+    toggle = toggle.lower()
+    if toggle not in ["on", "off"]:
+        await interaction.response.send_message("❌ Invalid argument. Use `on` or `off`.", ephemeral=True)
+        return
+
+    user_id = str(interaction.user.id)
+    repost_data = load_repost()
+    repost_data[user_id] = toggle == "on"
+    save_repost(repost_data)
+    status = "enabled" if toggle == "on" else "disabled"
+    await interaction.response.send_message(f"✅ Reposting is now {status}.", ephemeral=True)
+
+# -----------------------------
+# /list
+# -----------------------------
+@bot.tree.command(name="list", description="List all tracked phrases, counters, and shortcuts in this channel", guild=guild)
 async def list_command(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     channel_id = str(interaction.channel.id)
-
     tracking_data = load_tracking()
     counters_data = load_counters()
     shortcuts_data = load_shortcuts()
+    embed = discord.Embed(title=f"{interaction.user.display_name}'s Tracking Info", color=discord.Color.blue())
 
-    embed = discord.Embed(
-        title=f"{interaction.user.display_name}'s Tracking Information",
-        color=discord.Color.blue()
-    )
-
-    # -----------------------------
-    # Tracked phrases with counters
-    # -----------------------------
     user_phrases = tracking_data.get(user_id, [])
     if user_phrases:
-        phrase_lines = []
-        for phrase in user_phrases:
-            count = counters_data.get(user_id, {}).get(channel_id, {}).get(phrase, 0)
-            phrase_lines.append(f"`{phrase}` — X{count}")
-        embed.add_field(
-            name="Tracked Phrases",
-            value="\n".join(phrase_lines),
-            inline=False
-        )
+        phrase_lines = [f"`{p}` — X{counters_data.get(user_id, {}).get(channel_id, {}).get(p,0)}" for p in user_phrases]
+        embed.add_field(name="Tracked Phrases", value="\n".join(phrase_lines), inline=False)
     else:
-        embed.add_field(
-            name="Tracked Phrases",
-            value="You are not tracking any phrases.",
-            inline=False
-        )
+        embed.add_field(name="Tracked Phrases", value="You are not tracking any phrases.", inline=False)
 
-    # -----------------------------
-    # Shortcuts
-    # -----------------------------
     user_shortcuts = shortcuts_data.get(user_id, {})
     if user_shortcuts:
-        shortcut_lines = []
-        for shortcut, target in user_shortcuts.items():
-            shortcut_lines.append(f"`{shortcut}` → `{target}`")
-        embed.add_field(
-            name="Shortcuts",
-            value="\n".join(shortcut_lines),
-            inline=False
-        )
+        shortcut_lines = [f"`{s}` → `{t}`" for s, t in user_shortcuts.items()]
+        embed.add_field(name="Shortcuts", value="\n".join(shortcut_lines), inline=False)
     else:
-        embed.add_field(
-            name="Shortcuts",
-            value="You have no shortcuts set.",
-            inline=False
-        )
+        embed.add_field(name="Shortcuts", value="No shortcuts set.", inline=False)
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # -----------------------------
-# Slash command: /help
+# /help
 # -----------------------------
-@bot.tree.command(
-    name="help",
-    description="Show a list of all available commands and what they do",
-    guild=guild
-)
+@bot.tree.command(name="help", description="Show all commands", guild=guild)
 async def help_command(interaction: discord.Interaction):
-    embed = discord.Embed(
-        title="📜 CounterBot Commands",
-        description="Here's a summary of all the commands you can use:",
-        color=discord.Color.green()
-    )
-
-    embed.add_field(
-        name="/track <phrase>",
-        value="Start tracking a phrase. Counts will be appended to it when you send messages containing it.",
-        inline=False
-    )
-
-    embed.add_field(
-        name="/untrack <phrase>",
-        value="Stop tracking a phrase.",
-        inline=False
-    )
-
-    embed.add_field(
-        name="/set <phrase> <count>",
-        value="Set the counter for a tracked phrase in the current channel.",
-        inline=False
-    )
-
-    embed.add_field(
-        name="/append [phrase]",
-        value="Append a phrase to the end of your messages. Leave the argument empty to remove the append phrase.",
-        inline=False
-    )
-
-    embed.add_field(
-        name="/shortcut_add <phrase> <shortcut>",
-        value="Create a shortcut so typing <shortcut> will replace it with <phrase> in your messages.",
-        inline=False
-    )
-
-    embed.add_field(
-        name="/shortcut_remove <phrase>",
-        value="Remove all shortcuts associated with a phrase.",
-        inline=False
-    )
-
-    embed.add_field(
-        name="/list",
-        value="List all your tracked phrases and their counters in this channel, as well as your shortcuts.",
-        inline=False
-    )
-
-    embed.set_footer(text="All counters are per-channel. Messages are reposted to include counters if needed.")
-
+    embed = discord.Embed(title="📜 CounterBot Commands", description="Commands you can use:", color=discord.Color.green())
+    embed.add_field(name="/track <phrase>", value="Start tracking a phrase.", inline=False)
+    embed.add_field(name="/untrack <phrase>", value="Stop tracking a phrase.", inline=False)
+    embed.add_field(name="/set <phrase> <count>", value="Set counter in this channel.", inline=False)
+    embed.add_field(name="/append [phrase]", value="Append a phrase to your messages.", inline=False)
+    embed.add_field(name="/shortcut_add <phrase> <shortcut>", value="Add a shortcut.", inline=False)
+    embed.add_field(name="/shortcut_remove <phrase>", value="Remove shortcuts.", inline=False)
+    embed.add_field(name="/repost <on/off>", value="Toggle reposting messages.", inline=False)
+    embed.add_field(name="/list", value="List tracked phrases and shortcuts.", inline=False)
+    embed.set_footer(text="Counters are per-channel. Messages are reposted only if enabled.")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # -----------------------------
@@ -546,6 +398,6 @@ async def on_ready():
     print(f"✅ Logged in as {bot.user} for guild {GUILD_ID}")
 
 # -----------------------------
-# Start the bot
+# Start bot
 # -----------------------------
 bot.run(TOKEN)
