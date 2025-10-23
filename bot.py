@@ -133,7 +133,7 @@ async def on_message(message):
     user_shortcuts = shortcuts_data.get(user_id, {})
     modified = message.content or ""
     updated = False
-    skip_append = False  # Prevent append if a shortcut replaced a tracked phrase at the end
+    skip_append = False  # Prevent append if shortcut replaced a tracked phrase at the end
 
     # -----------------------------
     # Initialize counters if needed
@@ -170,25 +170,27 @@ async def on_message(message):
     # -----------------------------
     if modified:
         for phrase in user_phrases:
-            phrase_lower = phrase.lower()
-            start = 0
-            content_lower = modified.lower()
-            while True:
-                index = content_lower.find(phrase_lower, start)
-                if index == -1:
-                    break
+            # Match only standalone phrases (surrounded by word boundaries or punctuation/whitespace)
+            pattern = r'(?<!\w)(' + re.escape(phrase) + r')(?!\w)'
+            matches = list(re.finditer(pattern, modified, flags=re.IGNORECASE))
+            if not matches:
+                continue
 
-                # Increment counter for this phrase in this channel
+            # We’ll rebuild the string with counters appended after each match
+            offset = 0
+            for match in matches:
+                start, end = match.span()
+                start += offset
+                end += offset
+
+                # Increment counter
                 current_count = counters_data[user_id][channel_id].get(phrase, 0) + 1
                 counters_data[user_id][channel_id][phrase] = current_count
 
-                before = modified[:index + len(phrase)]
-                after = modified[index + len(phrase):]
-                modified = before + f" X{current_count}" + after
-
-                start = index + len(phrase) + len(f" X{current_count}")
+                insert_text = f" X{current_count}"
+                modified = modified[:end] + insert_text + modified[end:]
+                offset += len(insert_text)
                 updated = True
-                content_lower = modified.lower()
 
     # -----------------------------
     # Apply append phrase
@@ -201,10 +203,11 @@ async def on_message(message):
                 (content_to_check.startswith('{') and content_to_check.endswith('}')) or
                 (content_to_check.startswith('[') and content_to_check.endswith(']'))):
 
-            # Skip if the message starts or ends with a tracked phrase
-            if not any(content_to_check.lower().startswith(p.lower()) or content_to_check.lower().endswith(p.lower())
-                       for p in user_phrases):
-
+            # Skip if message starts or ends with a tracked phrase
+            if not any(
+                re.search(rf'(?<!\w){re.escape(p)}(?!\w)', content_to_check, re.IGNORECASE)
+                for p in user_phrases
+            ):
                 # Only add a counter if the append phrase is tracked
                 if append_phrase in user_phrases:
                     append_count = counters_data[user_id][channel_id].get(append_phrase, 0) + 1
