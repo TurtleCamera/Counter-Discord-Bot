@@ -324,12 +324,13 @@ async def repost_command(interaction: discord.Interaction, toggle: str):
     status = "enabled" if toggle == "on" else "disabled"
     await interaction.response.send_message(f"✅ Reposting is now {status}.", ephemeral=True)
 
-@bot.tree.command(name="list", description="List tracked phrases, counters, and shortcuts", guild=guild)
+@bot.tree.command(name="list", description="List tracked phrases, counters, shortcuts, and append phrase", guild=guild)
 async def list_command(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     channel_id = str(interaction.channel.id)
     embed = discord.Embed(title=f"{interaction.user.display_name}'s Tracking Info", color=discord.Color.blue())
 
+    # Tracked phrases and counters
     user_phrases = tracking_data.get(user_id, [])
     if user_phrases:
         phrase_lines = [f"`{p}` X{counters_data.get(user_id, {}).get(channel_id, {}).get(p, 0)}" for p in user_phrases]
@@ -337,12 +338,20 @@ async def list_command(interaction: discord.Interaction):
     else:
         embed.add_field(name="Tracked Phrases", value="You are not tracking any phrases.", inline=False)
 
+    # Shortcuts
     user_shortcuts = shortcuts_data.get(user_id, {})
     if user_shortcuts:
         shortcut_lines = [f"`{s}` → `{t}`" for s, t in user_shortcuts.items()]
         embed.add_field(name="Shortcuts", value="\n".join(shortcut_lines), inline=False)
     else:
         embed.add_field(name="Shortcuts", value="No shortcuts set.", inline=False)
+
+    # Append phrase
+    append_phrase = append_data.get(user_id)
+    if append_phrase:
+        embed.add_field(name="Append Phrase", value=f"`{append_phrase}`", inline=False)
+    else:
+        embed.add_field(name="Append Phrase", value="No append phrase set.", inline=False)
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
