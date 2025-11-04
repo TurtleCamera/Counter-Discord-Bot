@@ -16,7 +16,7 @@ with open("guild.id", "r") as f:
 
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix=commands.when_mentioned, intents=intents)
 
 # -----------------------------
 # Data paths and setup
