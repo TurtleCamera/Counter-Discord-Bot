@@ -231,7 +231,7 @@ async def on_message(message):
         files = [await att.to_file() for att in message.attachments]
 
         # Check if reply quoting is enabled
-        user_reply_enabled = reply_data.get(user_id, True)  # default True
+        user_reply_enabled = reply_data.get(user_id, False)  # default False
         reply_prefix = ""
 
         if user_reply_enabled and message.reference and isinstance(message.reference.resolved, discord.Message):
