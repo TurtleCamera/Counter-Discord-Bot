@@ -99,6 +99,10 @@ async def on_message(message):
     if message.author.bot:
         return
 
+    # Skip system messages such as "pinned a message" or "joined the server"
+    if message.type != discord.MessageType.default:
+        return
+
     user_id = str(message.author.id)
     channel_id = str(message.channel.id)
 
