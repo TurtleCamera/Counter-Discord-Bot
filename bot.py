@@ -29,6 +29,18 @@ COUNTERS_FILE = os.path.join(DATA_DIR, "counters.json")
 APPEND_FILE = os.path.join(DATA_DIR, "append_phrases.json")
 SHORTCUT_FILE = os.path.join(DATA_DIR, "shortcuts.json")
 REPOST_FILE = os.path.join(DATA_DIR, "repost.json")
+REPLY_FILE = os.path.join(DATA_DIR, "reply.json")
+
+# Initialize in-memory reply_data
+reply_data = {}
+
+def load_reply():
+    global reply_data
+    reply_data = load_json(REPLY_FILE)
+    return reply_data
+
+def save_reply():
+    save_json(REPLY_FILE, reply_data)
 
 # -----------------------------
 # JSON helpers
@@ -61,6 +73,7 @@ def load_all_data():
     append_data = load_json(APPEND_FILE)
     shortcuts_data = load_json(SHORTCUT_FILE)
     repost_data = load_json(REPOST_FILE)
+    reply_data = load_json(REPLY_FILE)
 
 def save_all_data():
     save_json(TRACK_FILE, tracking_data)
@@ -68,6 +81,7 @@ def save_all_data():
     save_json(APPEND_FILE, append_data)
     save_json(SHORTCUT_FILE, shortcuts_data)
     save_json(REPOST_FILE, repost_data)
+    save_json(REPLY_FILE, reply_data)
 
 # -----------------------------
 # Guild object
@@ -216,31 +230,25 @@ async def on_message(message):
         # Gather attachments from current message
         files = [await att.to_file() for att in message.attachments]
 
-        # Build content for replies
+        # Check if reply quoting is enabled
+        user_reply_enabled = reply_data.get(user_id, True)  # default True
         reply_prefix = ""
-        if message.reference and isinstance(message.reference.resolved, discord.Message):
+
+        if user_reply_enabled and message.reference and isinstance(message.reference.resolved, discord.Message):
             original = message.reference.resolved
+            original_lines = original.content.splitlines()
 
-            # Quote the original message in the desired format
-            if message.reference and isinstance(message.reference.resolved, discord.Message):
-                original = message.reference.resolved
-                original_lines = original.content.splitlines()
+            # Skip bot-generated quotes to avoid double quoting
+            if original_lines and re.match(rf"^> <@!?{original.author.id}>", original_lines[0]):
+                clean_lines = [line for line in original_lines if not line.startswith("> ")]
+            else:
+                clean_lines = original_lines
 
-                # Check if first line is a bot-generated mention
-                if original_lines and re.match(rf"^> <@!?{original.author.id}>", original_lines[0]):
-                    # Skip all lines starting with "> "
-                    clean_lines = [line for line in original_lines if not line.startswith("> ")]
-                else:
-                    # Keep all lines (manual quote)
-                    clean_lines = original_lines
+            if clean_lines:
+                quoted_lines = "\n".join(f"> {line}" for line in clean_lines)
+                reply_prefix = f"> {original.author.mention}\n{quoted_lines}\n"
 
-                if clean_lines:
-                    quoted_lines = "\n".join(f"> {line}" for line in clean_lines)
-                    reply_prefix = f"> {original.author.mention}\n{quoted_lines}\n"
-                else:
-                    reply_prefix = ""
-
-            # Include original message attachments if any
+            # Include original attachments if any
             for att in original.attachments:
                 files.append(await att.to_file())
 
@@ -257,9 +265,9 @@ async def on_message(message):
             )
 
     await bot.process_commands(message)
-
+   
 # -----------------------------
-# Slash commands
+# /track
 # -----------------------------
 @bot.tree.command(name="track", description="Track a phrase", guild=guild)
 @app_commands.describe(phrase="The phrase you want to track")
@@ -273,7 +281,10 @@ async def track(interaction: discord.Interaction, phrase: str):
     tracking_data[user_id].append(phrase)
     save_json(TRACK_FILE, tracking_data)
     await interaction.response.send_message(f"✅ You are now tracking: '{phrase}'", ephemeral=True)
-
+    
+# -----------------------------
+# /untrack
+# -----------------------------
 @bot.tree.command(name="untrack", description="Stop tracking a phrase", guild=guild)
 @app_commands.describe(phrase="The phrase you want to stop tracking")
 async def untrack(interaction: discord.Interaction, phrase: str):
@@ -290,7 +301,10 @@ async def untrack(interaction: discord.Interaction, phrase: str):
         del tracking_data[user_id]
     save_json(TRACK_FILE, tracking_data)
     await interaction.response.send_message(f"✅ You have stopped tracking: '{phrase}'", ephemeral=True)
-
+    
+# -----------------------------
+# /set
+# -----------------------------
 @bot.tree.command(name="set", description="Set the counter for a tracked phrase", guild=guild)
 @app_commands.describe(phrase="The phrase", count="Set counter to this number (≥0)")
 async def set_counter(interaction: discord.Interaction, phrase: str, count: int):
@@ -306,7 +320,10 @@ async def set_counter(interaction: discord.Interaction, phrase: str, count: int)
     counters_data[user_id][channel_id][phrase] = count
     save_json(COUNTERS_FILE, counters_data)
     await interaction.response.send_message(f"✅ Counter for '{phrase}' set to {count}.", ephemeral=True)
-
+    
+# -----------------------------
+# /append
+# -----------------------------
 @bot.tree.command(name="append", description="Append a phrase to your messages", guild=guild)
 @app_commands.describe(phrase="Phrase to append (leave empty to remove)")
 async def append_command(interaction: discord.Interaction, phrase: str = None):
@@ -322,7 +339,10 @@ async def append_command(interaction: discord.Interaction, phrase: str = None):
     append_data[user_id] = phrase
     save_json(APPEND_FILE, append_data)
     await interaction.response.send_message(f"✅ Messages will now append '{phrase}'.", ephemeral=True)
-
+    
+# -----------------------------
+# /shortcut_add
+# -----------------------------
 @bot.tree.command(name="shortcut_add", description="Add a shortcut for a phrase", guild=guild)
 @app_commands.describe(phrase="Phrase to replace with", shortcut="Shortcut trigger word")
 async def shortcut_add(interaction: discord.Interaction, phrase: str, shortcut: str):
@@ -335,7 +355,10 @@ async def shortcut_add(interaction: discord.Interaction, phrase: str, shortcut: 
     shortcuts_data[user_id][shortcut] = phrase
     save_json(SHORTCUT_FILE, shortcuts_data)
     await interaction.response.send_message(f"✅ Shortcut '{shortcut}' → '{phrase}' added.", ephemeral=True)
-
+    
+# -----------------------------
+# /shortcut_remove
+# -----------------------------
 @bot.tree.command(name="shortcut_remove", description="Remove a shortcut for a phrase", guild=guild)
 @app_commands.describe(phrase="Phrase whose shortcut to remove")
 async def shortcut_remove(interaction: discord.Interaction, phrase: str):
@@ -352,6 +375,9 @@ async def shortcut_remove(interaction: discord.Interaction, phrase: str):
     save_json(SHORTCUT_FILE, shortcuts_data)
     await interaction.response.send_message(f"✅ Removed shortcut(s): {', '.join(to_remove)}", ephemeral=True)
 
+# -----------------------------
+# /repost
+# -----------------------------
 @bot.tree.command(name="repost", description="Toggle message reposting on or off", guild=guild)
 @app_commands.describe(toggle="Enable or disable reposting (on/off)")
 async def repost_command(interaction: discord.Interaction, toggle: str):
@@ -365,6 +391,37 @@ async def repost_command(interaction: discord.Interaction, toggle: str):
     status = "enabled" if toggle == "on" else "disabled"
     await interaction.response.send_message(f"✅ Reposting is now {status}.", ephemeral=True)
 
+# -----------------------------
+# /reply
+# -----------------------------
+@bot.tree.command(
+    name="reply",
+    description="Toggle the new reply quoting mechanic on or off",
+    guild=guild
+)
+@app_commands.describe(toggle="Enable or disable reply quoting (on/off)")
+async def reply(interaction: discord.Interaction, toggle: str):
+    toggle = toggle.lower()
+    if toggle not in ["on", "off"]:
+        await interaction.response.send_message(
+            "❌ Invalid argument. Use `on` or `off`.",
+            ephemeral=True
+        )
+        return
+
+    user_id = str(interaction.user.id)
+    reply_data[user_id] = toggle == "on"
+    save_reply()
+
+    status = "enabled" if toggle == "on" else "disabled"
+    await interaction.response.send_message(
+        f"✅ Reply quoting is now {status}.",
+        ephemeral=True
+    )
+
+# -----------------------------
+# /list
+# -----------------------------
 @bot.tree.command(name="list", description="List tracked phrases, counters, shortcuts, and append phrase", guild=guild)
 async def list_command(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
@@ -396,6 +453,9 @@ async def list_command(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+# -----------------------------
+# /help
+# -----------------------------
 @bot.tree.command(name="help", description="Show all commands", guild=guild)
 async def help_command(interaction: discord.Interaction):
     embed = discord.Embed(title="📜 CounterBot Commands", color=discord.Color.green())
