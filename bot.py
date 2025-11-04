@@ -4,6 +4,7 @@ import re
 import discord
 from discord.ext import commands
 from discord import app_commands
+from discord import AllowedMentions
 
 # -----------------------------
 # Read token and guild ID
@@ -212,7 +213,8 @@ async def on_message(message):
                 username=message.author.display_name,
                 avatar_url=message.author.display_avatar.url,
                 wait=True,
-                files=files
+                files=files,
+                allowed_mentions=AllowedMentions.none()
             )
 
     await bot.process_commands(message)
