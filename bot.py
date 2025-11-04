@@ -212,17 +212,48 @@ async def on_message(message):
     if updated or message.attachments:
         if updated:
             save_json(COUNTERS_FILE, counters_data)
+
+        # Gather attachments from current message
         files = [await att.to_file() for att in message.attachments]
+
+        # Build content for replies
+        reply_prefix = ""
+        if message.reference and isinstance(message.reference.resolved, discord.Message):
+            original = message.reference.resolved
+
+            # Quote the original message in the desired format
+            if message.reference and isinstance(message.reference.resolved, discord.Message):
+                original = message.reference.resolved
+                original_lines = original.content.splitlines()
+
+                # Check if first line is a bot-generated mention
+                if original_lines and re.match(rf"^> <@!?{original.author.id}>", original_lines[0]):
+                    # Skip all lines starting with "> "
+                    clean_lines = [line for line in original_lines if not line.startswith("> ")]
+                else:
+                    # Keep all lines (manual quote)
+                    clean_lines = original_lines
+
+                if clean_lines:
+                    quoted_lines = "\n".join(f"> {line}" for line in clean_lines)
+                    reply_prefix = f"> {original.author.mention}\n{quoted_lines}\n"
+                else:
+                    reply_prefix = ""
+
+            # Include original message attachments if any
+            for att in original.attachments:
+                files.append(await att.to_file())
+
         if repost_enabled:
             await message.delete()
             webhook = await get_channel_webhook(message.channel)
             await webhook.send(
-                content=modified if updated else None,
+                content=reply_prefix + (modified if updated else ""),
                 username=message.author.display_name,
                 avatar_url=message.author.display_avatar.url,
                 wait=True,
                 files=files,
-                allowed_mentions=AllowedMentions.none()
+                allowed_mentions=discord.AllowedMentions.none()  # Prevent double pings
             )
 
     await bot.process_commands(message)
