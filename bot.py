@@ -102,6 +102,10 @@ async def on_message(message):
     # Skip system messages such as "pinned a message" or "joined the server"
     if message.type != discord.MessageType.default:
         return
+    
+    # Skip empty messages (like forwarded messages, which have no message content)
+    if not message.content and not message.attachments:
+        return
 
     user_id = str(message.author.id)
     channel_id = str(message.channel.id)
