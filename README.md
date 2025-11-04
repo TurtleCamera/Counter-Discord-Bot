@@ -63,7 +63,11 @@ Removes all shortcuts associated with a phrase.
 
 ### `/repost [on/off]`
 Toggles the reposting feature.
-- When **on**, messages containing tracked phrases are deleted and reposted with counters and appended phrases.
+- When **on**, messages containing tracked phrases are deleted and reposted with counters, appended phrases, and shortcuts applied.  
+  - Reposts that contain mentions do not trigger a second ping.
+  - If the message is a reply, the bot will include a quoted preview of the original message with the user mentioned.  
+  - Attachments are preserved and reposted along with the message.  
+  - System messages (like pins, joins, boosts) are **not** reposted.
 - When **off**, counters are still incremented, but messages are not reposted.
 
 ---

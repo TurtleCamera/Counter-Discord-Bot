@@ -407,7 +407,7 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(name="/shortcut_remove <phrase>", value="Remove shortcuts.", inline=False)
     embed.add_field(name="/repost [on/off]", value="Toggle reposting messages.", inline=False)
     embed.add_field(name="/list", value="List tracked phrases and shortcuts.", inline=False)
-    embed.set_footer(text="Counters are per-channel. Messages are reposted only if enabled.")
+    embed.set_footer(text="Counters are per-channel. Messages are reposted only if enabled. See README.md for full details.")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # -----------------------------
