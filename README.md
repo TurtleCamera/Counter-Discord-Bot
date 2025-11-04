@@ -72,6 +72,16 @@ Toggles the reposting feature.
 
 ---
 
+### `/reply [on/off]`
+
+Toggles the new reply quoting mechanic.
+
+* When **on**, replies to messages will include a quoted preview of the original message with the user mentioned, even when messages are reposted.
+* When **off**, replies are reposted normally without quoting the original message.
+* Attachments in the original message are included in the reply.
+
+---
+
 ## Example Usage
 ```plaintext
 /track :thumbsup:
