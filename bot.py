@@ -99,8 +99,8 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # Skip system messages such as "pinned a message" or "joined the server"
-    if message.type != discord.MessageType.default:
+    # Skip any message that isn't a default or reply type
+    if message.type != discord.MessageType.default and message.type != discord.MessageType.reply:
         return
     
     # Skip empty messages (like forwarded messages, which have no message content)
