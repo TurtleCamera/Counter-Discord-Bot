@@ -172,6 +172,15 @@ async def on_message(message):
                 updated = True
 
     # -----------------------------
+    # Remove existing counters like "phrase X123"
+    # -----------------------------
+    if modified:
+        for phrase in user_phrases:
+            # Match cases like "RIP X172" or ":thumbsup: X5"
+            pattern = rf'(?<!\w)({re.escape(phrase)})\s*X\d+'
+            modified = re.sub(pattern, r'\1', modified)
+
+    # -----------------------------
     # Apply tracked phrase counters
     # -----------------------------
     if modified:
