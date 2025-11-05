@@ -67,7 +67,7 @@ shortcuts_data = {}
 repost_data = {}
 
 def load_all_data():
-    global tracking_data, counters_data, append_data, shortcuts_data, repost_data
+    global tracking_data, counters_data, append_data, shortcuts_data, repost_data, reply_data
     tracking_data = load_json(TRACK_FILE)
     counters_data = load_json(COUNTERS_FILE)
     append_data = load_json(APPEND_FILE)
