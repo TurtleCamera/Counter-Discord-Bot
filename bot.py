@@ -257,10 +257,6 @@ async def on_message(message):
                 quoted_lines = "\n".join(f"> {line}" for line in clean_lines)
                 reply_prefix = f"> {original.author.mention}\n{quoted_lines}\n"
 
-            # Include original attachments if any
-            for att in original.attachments:
-                files.append(await att.to_file())
-
         if repost_enabled:
             await message.delete()
             webhook = await get_channel_webhook(message.channel)
