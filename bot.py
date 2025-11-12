@@ -258,16 +258,30 @@ async def on_message(message):
                 reply_prefix = f"> {original.author.mention}\n{quoted_lines}\n"
 
         if repost_enabled:
-            await message.delete()
-            webhook = await get_channel_webhook(message.channel)
-            await webhook.send(
-                content=reply_prefix + (modified if updated else "\u200b"),
-                username=message.author.display_name,
-                avatar_url=message.author.display_avatar.url,
-                wait=True,
-                files=files,
-                allowed_mentions=discord.AllowedMentions.none()  # Prevent double pings
-            )
+            # Safe repost with fallback
+            try:
+                webhook = await get_channel_webhook(message.channel)
+                await message.delete()
+                await webhook.send(
+                    content=reply_prefix + (modified if updated else "\u200b"),
+                    username=message.author.display_name,
+                    avatar_url=message.author.display_avatar.url,
+                    wait=True,
+                    files=files,
+                    allowed_mentions=discord.AllowedMentions.none()  # Prevent double pings
+                )
+            except Exception as e:
+                print(f"❌ Failed to repost message from {message.author}: {e}")
+                # Attempt to restore the original message
+                try:
+                    await message.channel.send(
+                        content=message.content or "\u200b",
+                        files=files,
+                        allowed_mentions=discord.AllowedMentions.none()
+                    )
+                    print(f"✅ Restored original message for {message.author}")
+                except Exception as restore_error:
+                    print(f"❌ Failed to restore deleted message: {restore_error}")
 
     await bot.process_commands(message)
    
