@@ -261,7 +261,7 @@ async def on_message(message):
             await message.delete()
             webhook = await get_channel_webhook(message.channel)
             await webhook.send(
-                content=reply_prefix + (modified if updated else ""),
+                content=reply_prefix + (modified if updated else "\u200b"),
                 username=message.author.display_name,
                 avatar_url=message.author.display_avatar.url,
                 wait=True,
