@@ -110,7 +110,19 @@ async def get_channel_webhook(channel):
 # -----------------------------
 @bot.event
 async def on_message(message):
+    # Ignore messages sent by other bots (including itself) to prevent loops or double processing
     if message.author.bot:
+        return
+
+    # Skip messages with no text (attachments only) if user is tracked
+    user_id = str(message.author.id)
+    if user_id not in tracking_data:
+        await bot.process_commands(message)
+        return
+
+    # If message has attachments but no text, skip because there's nothing to track/append
+    if not message.content.strip() and message.attachments:
+        await bot.process_commands(message)
         return
 
     # Skip any message that isn't a default or reply type
