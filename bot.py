@@ -121,7 +121,7 @@ def replace_delimiter_mentions(content, guild, delimiter="!"):
             return match.group(0)  # leave unchanged if no match
 
     # Match words starting with delimiter, capture trailing punctuation separately
-    pattern = re.compile(rf"{re.escape(delimiter)}([^\s{re.escape(string.punctuation)}]+)([^\w\s]*)")
+    pattern = re.compile(rf"{re.escape(delimiter)}([^\W{re.escape(delimiter)}]+)([^\w\s{re.escape(delimiter)}]*)")
     return pattern.sub(replace_match, content)
 
 # Message handling
@@ -164,6 +164,11 @@ async def on_message(message):
     modified = message.content or ""
     updated = False
     skip_append = False
+
+    # Apply delimiter-based mention replacement to modified message
+    user_delimiter = delimiters_data.get(user_id)
+    if user_delimiter:
+        modified = replace_delimiter_mentions(modified, message.guild, delimiter=user_delimiter)
 
     # Initialize counters
     if user_id not in counters_data:
@@ -278,11 +283,6 @@ async def on_message(message):
             try:
                 webhook = await get_channel_webhook(message.channel)
                 await message.delete()
-
-                # Apply delimiter-based mention replacement to modified message
-                user_delimiter = delimiters_data.get(user_id)
-                if user_delimiter:
-                    modified = replace_delimiter_mentions(modified, message.guild, delimiter=user_delimiter)
 
                 await webhook.send(
                     content=reply_prefix + modified,
