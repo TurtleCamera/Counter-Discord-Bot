@@ -280,8 +280,9 @@ async def on_message(message):
                 await message.delete()
 
                 # Apply delimiter-based mention replacement to modified message
-                user_delimiter = delimiters_data.get(user_id, "!")
-                modified = replace_delimiter_mentions(modified, message.guild, delimiter=user_delimiter)
+                user_delimiter = delimiters_data.get(user_id)
+                if user_delimiter:
+                    modified = replace_delimiter_mentions(modified, message.guild, delimiter=user_delimiter)
 
                 await webhook.send(
                     content=reply_prefix + modified,
@@ -407,13 +408,26 @@ async def shortcut_remove(interaction: discord.Interaction, phrase: str):
 # /delimiter
 @bot.tree.command(name="delimiter", description="Set your mention delimiter", guild=guild)
 @app_commands.describe(delimiter="Single character to use as mention prefix")
-async def set_delimiter(interaction: discord.Interaction, delimiter: str):
+async def set_delimiter(interaction: discord.Interaction, delimiter: str = None):
+    user_id = str(interaction.user.id)
+    
+    # If user provided nothing or only whitespace, disable the delimiter
+    if not delimiter or delimiter.strip() == "":
+        if user_id in delimiters_data:
+            del delimiters_data[user_id]
+            save_json(DELIMITER_FILE, delimiters_data)
+        await interaction.response.send_message(
+            "✅ Your mention delimiter is now disabled.", ephemeral=True
+        )
+        return
+
+    # Enforce single-character delimiter
     if len(delimiter) != 1:
         await interaction.response.send_message(
             "❌ Delimiter must be a single character.", ephemeral=True
         )
         return
-    user_id = str(interaction.user.id)
+
     delimiters_data[user_id] = delimiter
     save_json(DELIMITER_FILE, delimiters_data)
     await interaction.response.send_message(
