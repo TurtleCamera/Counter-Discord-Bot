@@ -184,7 +184,14 @@ async def on_message(message):
     # Apply delimiter-based mention replacement to modified message
     user_delimiter = delimiters_data.get(user_id)
     if user_delimiter:
-        modified = replace_delimiter_mentions(modified, message.guild, delimiter=user_delimiter)
+        new_modified = replace_delimiter_mentions(
+            modified,
+            message.guild,
+            delimiter=user_delimiter
+        )
+        if new_modified != modified:
+            modified = new_modified
+            updated = True
 
     # Initialize counters
     if user_id not in counters_data:
@@ -307,8 +314,6 @@ async def on_message(message):
         if repost_enabled:
             try:
                 webhook = await get_channel_webhook(message.channel)
-                await message.delete()
-
                 await webhook.send(
                     content=reply_prefix + modified,
                     username=message.author.display_name,
@@ -316,6 +321,7 @@ async def on_message(message):
                     wait=True,
                     files=files
                 )
+                await message.delete()
             except Exception as e:
                 print(f"Failed to repost message from {message.author}: {e}")
                 # Attempt to restore the original message
