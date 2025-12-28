@@ -321,19 +321,10 @@ async def on_message(message):
                     wait=True,
                     files=files
                 )
+
                 await message.delete()
             except Exception as e:
                 print(f"Failed to repost message from {message.author}: {e}")
-                # Attempt to restore the original message
-                try:
-                    await message.channel.send(
-                        content=message.content or "\u200b",
-                        files=files,
-                        allowed_mentions=discord.AllowedMentions.none()
-                    )
-                    print(f"Restored original message for {message.author}")
-                except Exception as restore_error:
-                    print(f"Failed to restore deleted message: {restore_error}")
 
     await bot.process_commands(message)
    
