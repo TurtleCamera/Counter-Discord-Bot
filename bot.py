@@ -292,7 +292,7 @@ async def on_message(message):
                     files=files
                 )
             except Exception as e:
-                print(f"❌ Failed to repost message from {message.author}: {e}")
+                print(f"Failed to repost message from {message.author}: {e}")
                 # Attempt to restore the original message
                 try:
                     await message.channel.send(
@@ -300,9 +300,9 @@ async def on_message(message):
                         files=files,
                         allowed_mentions=discord.AllowedMentions.none()
                     )
-                    print(f"✅ Restored original message for {message.author}")
+                    print(f"Restored original message for {message.author}")
                 except Exception as restore_error:
-                    print(f"❌ Failed to restore deleted message: {restore_error}")
+                    print(f"Failed to restore deleted message: {restore_error}")
 
     await bot.process_commands(message)
    
@@ -319,7 +319,7 @@ async def track(interaction: discord.Interaction, phrase: str):
         return
     tracking_data[user_id].append(phrase)
     save_json(TRACK_FILE, tracking_data)
-    await interaction.response.send_message(f"✅ You are now tracking: '{phrase}'", ephemeral=True)
+    await interaction.response.send_message(f"You are now tracking: '{phrase}'", ephemeral=True)
     
 # /untrack
 @bot.tree.command(name="untrack", description="Stop tracking a phrase", guild=guild)
@@ -327,24 +327,24 @@ async def track(interaction: discord.Interaction, phrase: str):
 async def untrack(interaction: discord.Interaction, phrase: str):
     user_id = str(interaction.user.id)
     if user_id not in tracking_data:
-        await interaction.response.send_message("❌ You are not tracking any phrases!", ephemeral=True)
+        await interaction.response.send_message("You are not tracking any phrases!", ephemeral=True)
         return
     matched = next((p for p in tracking_data[user_id] if p.lower() == phrase.lower()), None)
     if not matched:
-        await interaction.response.send_message(f"❌ You are not tracking '{phrase}'!", ephemeral=True)
+        await interaction.response.send_message(f"You are not tracking '{phrase}'!", ephemeral=True)
         return
     tracking_data[user_id].remove(matched)
     if not tracking_data[user_id]:
         del tracking_data[user_id]
     save_json(TRACK_FILE, tracking_data)
-    await interaction.response.send_message(f"✅ You have stopped tracking: '{phrase}'", ephemeral=True)
+    await interaction.response.send_message(f"You have stopped tracking: '{phrase}'", ephemeral=True)
     
 # /set
 @bot.tree.command(name="set", description="Set the counter for a tracked phrase", guild=guild)
 @app_commands.describe(phrase="The phrase", count="Set counter to this number (≥0)")
 async def set_counter(interaction: discord.Interaction, phrase: str, count: int):
     if count < 0:
-        await interaction.response.send_message("❌ Counter cannot be negative.", ephemeral=True)
+        await interaction.response.send_message("Counter cannot be negative.", ephemeral=True)
         return
     user_id = str(interaction.user.id)
     channel_id = str(interaction.channel.id)
@@ -354,7 +354,7 @@ async def set_counter(interaction: discord.Interaction, phrase: str, count: int)
         counters_data[user_id][channel_id] = {}
     counters_data[user_id][channel_id][phrase] = count
     save_json(COUNTERS_FILE, counters_data)
-    await interaction.response.send_message(f"✅ Counter for '{phrase}' set to {count}.", ephemeral=True)
+    await interaction.response.send_message(f"Counter for '{phrase}' set to {count}.", ephemeral=True)
     
 # /append
 @bot.tree.command(name="append", description="Append a phrase to your messages", guild=guild)
@@ -365,13 +365,13 @@ async def append_command(interaction: discord.Interaction, phrase: str = None):
         if user_id in append_data:
             del append_data[user_id]
             save_json(APPEND_FILE, append_data)
-            await interaction.response.send_message("✅ Removed append phrase.", ephemeral=True)
+            await interaction.response.send_message("Removed append phrase.", ephemeral=True)
         else:
-            await interaction.response.send_message("❌ You don't have an append phrase set.", ephemeral=True)
+            await interaction.response.send_message("You don't have an append phrase set.", ephemeral=True)
         return
     append_data[user_id] = phrase
     save_json(APPEND_FILE, append_data)
-    await interaction.response.send_message(f"✅ Messages will now append '{phrase}'.", ephemeral=True)
+    await interaction.response.send_message(f"Messages will now append '{phrase}'.", ephemeral=True)
     
 # /shortcut_add
 @bot.tree.command(name="shortcut_add", description="Add a shortcut for a phrase", guild=guild)
@@ -381,11 +381,11 @@ async def shortcut_add(interaction: discord.Interaction, phrase: str, shortcut: 
     if user_id not in shortcuts_data:
         shortcuts_data[user_id] = {}
     if any(s.lower() == shortcut.lower() for s in shortcuts_data[user_id]):
-        await interaction.response.send_message(f"❌ Shortcut '{shortcut}' already exists.", ephemeral=True)
+        await interaction.response.send_message(f"Shortcut '{shortcut}' already exists.", ephemeral=True)
         return
     shortcuts_data[user_id][shortcut] = phrase
     save_json(SHORTCUT_FILE, shortcuts_data)
-    await interaction.response.send_message(f"✅ Shortcut '{shortcut}' → '{phrase}' added.", ephemeral=True)
+    await interaction.response.send_message(f"Shortcut '{shortcut}' → '{phrase}' added.", ephemeral=True)
     
 # /shortcut_remove
 @bot.tree.command(name="shortcut_remove", description="Remove a shortcut for a phrase", guild=guild)
@@ -393,16 +393,16 @@ async def shortcut_add(interaction: discord.Interaction, phrase: str, shortcut: 
 async def shortcut_remove(interaction: discord.Interaction, phrase: str):
     user_id = str(interaction.user.id)
     if user_id not in shortcuts_data:
-        await interaction.response.send_message("❌ You don't have any shortcuts.", ephemeral=True)
+        await interaction.response.send_message("You don't have any shortcuts.", ephemeral=True)
         return
     to_remove = [s for s, p in shortcuts_data[user_id].items() if p.lower() == phrase.lower()]
     if not to_remove:
-        await interaction.response.send_message(f"❌ No shortcut found for '{phrase}'.", ephemeral=True)
+        await interaction.response.send_message(f"No shortcut found for '{phrase}'.", ephemeral=True)
         return
     for s in to_remove:
         del shortcuts_data[user_id][s]
     save_json(SHORTCUT_FILE, shortcuts_data)
-    await interaction.response.send_message(f"✅ Removed shortcut(s): {', '.join(to_remove)}", ephemeral=True)
+    await interaction.response.send_message(f"Removed shortcut(s): {', '.join(to_remove)}", ephemeral=True)
 
 # /delimiter
 @bot.tree.command(name="delimiter", description="Set your mention delimiter", guild=guild)
@@ -416,21 +416,21 @@ async def set_delimiter(interaction: discord.Interaction, delimiter: str = None)
             del delimiters_data[user_id]
             save_json(DELIMITER_FILE, delimiters_data)
         await interaction.response.send_message(
-            "✅ Your mention delimiter is now disabled.", ephemeral=True
+            "Your mention delimiter is now disabled.", ephemeral=True
         )
         return
 
     # Enforce single-character delimiter
     if len(delimiter) != 1:
         await interaction.response.send_message(
-            "❌ Delimiter must be a single character.", ephemeral=True
+            "Delimiter must be a single character.", ephemeral=True
         )
         return
 
     delimiters_data[user_id] = delimiter
     save_json(DELIMITER_FILE, delimiters_data)
     await interaction.response.send_message(
-        f"✅ Your mention delimiter is now set to `{delimiter}`.", ephemeral=True
+        f"Your mention delimiter is now set to `{delimiter}`.", ephemeral=True
     )
 
 # /repost
@@ -439,13 +439,13 @@ async def set_delimiter(interaction: discord.Interaction, delimiter: str = None)
 async def repost_command(interaction: discord.Interaction, toggle: str):
     toggle = toggle.lower()
     if toggle not in ["on", "off"]:
-        await interaction.response.send_message("❌ Invalid argument. Use `on` or `off`.", ephemeral=True)
+        await interaction.response.send_message("Invalid argument. Use `on` or `off`.", ephemeral=True)
         return
     user_id = str(interaction.user.id)
     repost_data[user_id] = toggle == "on"
     save_json(REPOST_FILE, repost_data)
     status = "enabled" if toggle == "on" else "disabled"
-    await interaction.response.send_message(f"✅ Reposting is now {status}.", ephemeral=True)
+    await interaction.response.send_message(f"Reposting is now {status}.", ephemeral=True)
 
 # /reply
 @bot.tree.command(
@@ -458,7 +458,7 @@ async def reply(interaction: discord.Interaction, toggle: str):
     toggle = toggle.lower()
     if toggle not in ["on", "off"]:
         await interaction.response.send_message(
-            "❌ Invalid argument. Use `on` or `off`.",
+            "Invalid argument. Use `on` or `off`.",
             ephemeral=True
         )
         return
@@ -469,7 +469,7 @@ async def reply(interaction: discord.Interaction, toggle: str):
 
     status = "enabled" if toggle == "on" else "disabled"
     await interaction.response.send_message(
-        f"✅ Reply quoting is now {status}.",
+        f"Reply quoting is now {status}.",
         ephemeral=True
     )
 
@@ -534,7 +534,7 @@ async def help_command(interaction: discord.Interaction):
 async def on_ready():
     load_all_data()
     await bot.tree.sync(guild=guild)
-    print(f"✅ Logged in as {bot.user} for guild {GUILD_ID}")
+    print(f"Logged in as {bot.user} for guild {GUILD_ID}")
 
 # Start bot
 bot.run(TOKEN)
