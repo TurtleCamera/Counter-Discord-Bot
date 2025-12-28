@@ -82,6 +82,16 @@ Toggles the new reply quoting mechanic.
 
 ---
 
+### `/delimiter <char>`
+
+Sets a custom prefix character for mention replacement in your messages.
+
+* Example: Setting `!` as your delimiter allows `!username` or `!DisplayName` to convert into a mention automatically.
+* Running the command without a character **disables** delimiter-based mentions.
+* **Note:** This assumes display names are unique within the server. If duplicates exist, the first match is used.
+
+---
+
 ## Example Usage
 ```plaintext
 /track :thumbsup:
