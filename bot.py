@@ -91,6 +91,8 @@ APOSTROPHES = {
     "ʼ": "'",
     "‛": "'",
     "＇": "'",
+    "՚": "'",
+    "ߵ": "'"
 }
 
 def normalize_apostrophes(text: str) -> str:
@@ -147,12 +149,6 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # Skip messages with no text (attachments only) if user is tracked
-    user_id = str(message.author.id)
-    if user_id not in tracking_data:
-        await bot.process_commands(message)
-        return
-
     # If message has attachments but no text, skip because there's nothing to track/append
     if not message.content.strip() and message.attachments:
         await bot.process_commands(message)
@@ -166,15 +162,11 @@ async def on_message(message):
     if not message.content and not message.attachments:
         return
 
+    # User information
     user_id = str(message.author.id)
     channel_id = str(message.channel.id)
-
     repost_enabled = repost_data.get(user_id, True)
-    if user_id not in tracking_data:
-        await bot.process_commands(message)
-        return
-
-    user_phrases = tracking_data[user_id]
+    user_phrases = tracking_data.get(user_id, [])
     append_phrase = append_data.get(user_id)
     user_shortcuts = shortcuts_data.get(user_id, {})
     modified = normalize_apostrophes(message.content or "") # Handle different cases of apostrophes
