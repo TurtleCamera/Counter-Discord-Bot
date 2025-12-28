@@ -504,6 +504,13 @@ async def list_command(interaction: discord.Interaction):
     else:
         embed.add_field(name="Append Phrase", value="No append phrase set.", inline=False)
 
+    # Delimiter info
+    user_delimiter = delimiters_data.get(user_id)
+    if user_delimiter:
+        embed.add_field(name="Mention Delimiter", value=f"`{user_delimiter}`", inline=False)
+    else:
+        embed.add_field(name="Mention Delimiter", value="None", inline=False)
+
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # /help
@@ -519,6 +526,7 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(name="/repost [on/off]", value="Toggle reposting messages.", inline=False)
     embed.add_field(name="/reply [on/off]", value="Toggle the new reply quoting mechanic.", inline=False)
     embed.add_field(name="/list", value="List tracked phrases and shortcuts.", inline=False)
+    embed.add_field(name="/delimiter <char>", value="Set your mention delimiter (leave empty to disable).", inline=False)
     embed.set_footer(text="Counters are per-channel. Messages are reposted only if enabled. See README.md for full details.")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
