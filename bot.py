@@ -289,8 +289,7 @@ async def on_message(message):
                     username=message.author.display_name,
                     avatar_url=message.author.display_avatar.url,
                     wait=True,
-                    files=files,
-                    allowed_mentions=discord.AllowedMentions.none()  # Prevent double pings
+                    files=files
                 )
             except Exception as e:
                 print(f"❌ Failed to repost message from {message.author}: {e}")
