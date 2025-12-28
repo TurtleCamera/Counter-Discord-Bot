@@ -28,6 +28,7 @@ APPEND_FILE = os.path.join(DATA_DIR, "append_phrases.json")
 SHORTCUT_FILE = os.path.join(DATA_DIR, "shortcuts.json")
 REPOST_FILE = os.path.join(DATA_DIR, "repost.json")
 REPLY_FILE = os.path.join(DATA_DIR, "reply.json")
+DELIMITER_FILE = os.path.join(DATA_DIR, "delimiters.json")
 
 # Initialize in-memory reply_data
 reply_data = {}
@@ -59,15 +60,17 @@ counters_data = {}
 append_data = {}
 shortcuts_data = {}
 repost_data = {}
+delimiters_data = {}
 
 def load_all_data():
-    global tracking_data, counters_data, append_data, shortcuts_data, repost_data, reply_data
+    global tracking_data, counters_data, append_data, shortcuts_data, repost_data, reply_data, delimiters_data
     tracking_data = load_json(TRACK_FILE)
     counters_data = load_json(COUNTERS_FILE)
     append_data = load_json(APPEND_FILE)
     shortcuts_data = load_json(SHORTCUT_FILE)
     repost_data = load_json(REPOST_FILE)
     reply_data = load_json(REPLY_FILE)
+    delimiters_data = load_json(DELIMITER_FILE)
 
 def save_all_data():
     save_json(TRACK_FILE, tracking_data)
@@ -76,6 +79,7 @@ def save_all_data():
     save_json(SHORTCUT_FILE, shortcuts_data)
     save_json(REPOST_FILE, repost_data)
     save_json(REPLY_FILE, reply_data)
+    save_json(DELIMITER_FILE, delimiters_data)
 
 # Guild object
 guild = discord.Object(id=GUILD_ID)
@@ -276,10 +280,11 @@ async def on_message(message):
                 await message.delete()
 
                 # Apply delimiter-based mention replacement to modified message
-                safe_body = replace_delimiter_mentions(modified, message.guild, delimiter="!")
+                user_delimiter = delimiters_data.get(user_id, "!")
+                modified = replace_delimiter_mentions(modified, message.guild, delimiter=user_delimiter)
 
                 await webhook.send(
-                    content=reply_prefix + safe_body,
+                    content=reply_prefix + modified,
                     username=message.author.display_name,
                     avatar_url=message.author.display_avatar.url,
                     wait=True,
@@ -398,6 +403,22 @@ async def shortcut_remove(interaction: discord.Interaction, phrase: str):
         del shortcuts_data[user_id][s]
     save_json(SHORTCUT_FILE, shortcuts_data)
     await interaction.response.send_message(f"✅ Removed shortcut(s): {', '.join(to_remove)}", ephemeral=True)
+
+# /delimiter
+@bot.tree.command(name="delimiter", description="Set your mention delimiter", guild=guild)
+@app_commands.describe(delimiter="Single character to use as mention prefix")
+async def set_delimiter(interaction: discord.Interaction, delimiter: str):
+    if len(delimiter) != 1:
+        await interaction.response.send_message(
+            "❌ Delimiter must be a single character.", ephemeral=True
+        )
+        return
+    user_id = str(interaction.user.id)
+    delimiters_data[user_id] = delimiter
+    save_json(DELIMITER_FILE, delimiters_data)
+    await interaction.response.send_message(
+        f"✅ Your mention delimiter is now set to `{delimiter}`.", ephemeral=True
+    )
 
 # /repost
 @bot.tree.command(name="repost", description="Toggle message reposting on or off", guild=guild)
