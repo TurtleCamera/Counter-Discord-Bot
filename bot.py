@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import string
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -14,6 +15,7 @@ with open("guild.id", "r") as f:
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 bot = commands.Bot(command_prefix=commands.when_mentioned, intents=intents)
 
 # -------------- Data Paths and Setup --------------
@@ -93,6 +95,30 @@ async def get_channel_webhook(channel):
             webhook = await channel.create_webhook(name=WEBHOOK_NAME)
         channel_webhooks[channel_id] = webhook
     return webhook
+
+# Replace occurrences of the delimiter + display name with real mentions.
+def replace_delimiter_mentions(content, guild, delimiter="!"):
+    """
+    Replace occurrences of delimiter+name with Discord mentions.
+    Picks the first matching member by display_name or username.
+    Assumes display names are unique.
+    """
+    def replace_match(match):
+        target_name = match.group(1)  # Just the name, no punctuation
+        trailing = match.group(2) or ""  # Preserve punctuation after the name
+        member = discord.utils.find(
+            lambda m: m.display_name.lower() == target_name.lower() 
+                      or m.name.lower() == target_name.lower(),
+            guild.members
+        )
+        if member:
+            return f"{member.mention}{trailing}"
+        else:
+            return match.group(0)  # leave unchanged if no match
+
+    # Match words starting with delimiter, capture trailing punctuation separately
+    pattern = re.compile(rf"{re.escape(delimiter)}([^\s{re.escape(string.punctuation)}]+)([^\w\s]*)")
+    return pattern.sub(replace_match, content)
 
 # Message handling
 @bot.event
@@ -245,12 +271,15 @@ async def on_message(message):
                 reply_prefix = f"> {original.author.mention}\n{quoted_lines}\n"
 
         if repost_enabled:
-            # Safe repost with fallback
             try:
                 webhook = await get_channel_webhook(message.channel)
                 await message.delete()
+
+                # Apply delimiter-based mention replacement to modified message
+                safe_body = replace_delimiter_mentions(modified, message.guild, delimiter="!")
+
                 await webhook.send(
-                    content=reply_prefix + (modified if updated else "\u200b"),
+                    content=reply_prefix + safe_body,
                     username=message.author.display_name,
                     avatar_url=message.author.display_avatar.url,
                     wait=True,
