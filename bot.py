@@ -84,6 +84,22 @@ def save_all_data():
 # Guild object
 guild = discord.Object(id=GUILD_ID)
 
+# -------------- Helper Functions --------------
+APOSTROPHES = {
+    "’": "'",
+    "‘": "'",
+    "ʼ": "'",
+    "‛": "'",
+    "＇": "'",
+}
+
+def normalize_apostrophes(text: str) -> str:
+    if not text:
+        return text
+    for k, v in APOSTROPHES.items():
+        text = text.replace(k, v)
+    return text
+
 # -------------- Webhooks and Messages --------------
 # Webhook management
 channel_webhooks = {}
@@ -161,7 +177,7 @@ async def on_message(message):
     user_phrases = tracking_data[user_id]
     append_phrase = append_data.get(user_id)
     user_shortcuts = shortcuts_data.get(user_id, {})
-    modified = message.content or ""
+    modified = normalize_apostrophes(message.content or "") # Handle different cases of apostrophes
     updated = False
     skip_append = False
 
@@ -178,10 +194,17 @@ async def on_message(message):
 
     # Helper: Check if phrase at start or end
     def phrase_at_edges(msg, phrase):
+        msg = normalize_apostrophes(msg)
+        phrase = normalize_apostrophes(phrase)
+
         msg_clean = re.sub(r' X\d+', '', msg)
         pattern_start = r'^\s*' + re.escape(phrase) + r'(\s|[.!?,;:]|$)'
         pattern_end = r'(\s|[.!?,;:]|^)' + re.escape(phrase) + r'\s*$'
-        return re.search(pattern_start, msg_clean, re.IGNORECASE) or re.search(pattern_end, msg_clean, re.IGNORECASE)
+
+        return (
+            re.search(pattern_start, msg_clean, re.IGNORECASE) or
+            re.search(pattern_end, msg_clean, re.IGNORECASE)
+        )
 
     # Apply shortcuts
     if modified:
@@ -205,13 +228,15 @@ async def on_message(message):
     if modified:
         for phrase in user_phrases:
             # Match cases like "RIP X172" or ":thumbsup: X5"
-            pattern = rf'(?<!\w)({re.escape(phrase)})\s*X\d+'
-            modified = re.sub(pattern, r'\1', modified)
+            norm_phrase = normalize_apostrophes(phrase)
+            pattern = rf'(?<!\w)({re.escape(norm_phrase)})\s*X\d+'
+            modified = re.sub(pattern, r'\1', modified, flags=re.IGNORECASE)
 
     # Apply tracked phrase counters
     if modified:
         for phrase in user_phrases:
-            pattern = r'(?<!\w)(' + re.escape(phrase) + r')(?!\w)'
+            norm_phrase = normalize_apostrophes(phrase)
+            pattern = r'(?<!\w)(' + re.escape(norm_phrase) + r')(?!\w)'
             matches = list(re.finditer(pattern, modified, flags=re.IGNORECASE))
             if not matches:
                 continue
