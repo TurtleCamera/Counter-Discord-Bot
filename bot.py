@@ -85,8 +85,7 @@ def save_all_data():
 guild = discord.Object(id=GUILD_ID)
 
 # -------------- Helper Functions --------------
-APOSTROPHES = ["’", "‘", "ʼ", "‛", "＇", "՚", "ߵ", "ߴ"]
-
+APOSTROPHES = ["’", "‘", "ʼ", "‛", "＇", "՚", "ߵ", "ߴ"] # Because mobile and PC type different apostrophes
 def normalize_apostrophes(text: str) -> str:
     if not text:
         return text
