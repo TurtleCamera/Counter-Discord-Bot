@@ -85,21 +85,13 @@ def save_all_data():
 guild = discord.Object(id=GUILD_ID)
 
 # -------------- Helper Functions --------------
-APOSTROPHES = {
-    "’": "'",
-    "‘": "'",
-    "ʼ": "'",
-    "‛": "'",
-    "＇": "'",
-    "՚": "'",
-    "ߵ": "'"
-}
+APOSTROPHES = ["’", "‘", "ʼ", "‛", "＇", "՚", "ߵ", "ߴ"]
 
 def normalize_apostrophes(text: str) -> str:
     if not text:
         return text
-    for k, v in APOSTROPHES.items():
-        text = text.replace(k, v)
+    for char in APOSTROPHES:
+        text = text.replace(char, "'")
     return text
 
 # -------------- Webhooks and Messages --------------
