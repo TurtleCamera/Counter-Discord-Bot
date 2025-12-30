@@ -269,9 +269,8 @@ async def on_message(message):
                 updated = True
 
     # Delete/repost only if enabled
-    if updated or message.attachments:
-        if updated:
-            save_json(COUNTERS_FILE, counters_data)
+    if updated:
+        save_json(COUNTERS_FILE, counters_data)
 
         # Gather attachments from current message
         files = [await att.to_file() for att in message.attachments]
