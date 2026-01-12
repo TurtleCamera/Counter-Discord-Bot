@@ -111,27 +111,39 @@ async def get_channel_webhook(channel):
 
 # Replace occurrences of the delimiter + display name with real mentions.
 def replace_delimiter_mentions(content, guild, delimiter="!"):
-    """
-    Replace occurrences of delimiter+name with Discord mentions.
-    Picks the first matching member by display_name or username.
-    Assumes display names are unique.
-    """
-    def replace_match(match):
-        target_name = match.group(1)  # Just the name, no punctuation
-        trailing = match.group(2) or ""  # Preserve punctuation after the name
-        member = discord.utils.find(
-            lambda m: m.display_name.lower() == target_name.lower() 
-                      or m.name.lower() == target_name.lower(),
-            guild.members
-        )
-        if member:
-            return f"{member.mention}{trailing}"
-        else:
-            return match.group(0)  # leave unchanged if no match
+    result = []
+    i = 0
+    n = len(content)
 
-    # Match words starting with delimiter, capture trailing punctuation separately
-    pattern = re.compile(rf"{re.escape(delimiter)}([^\W{re.escape(delimiter)}]+)([^\w\s{re.escape(delimiter)}]*)")
-    return pattern.sub(replace_match, content)
+    while i < n:
+        if content[i] != delimiter:
+            result.append(content[i])
+            i += 1
+            continue
+
+        matched = False
+        # Try every member
+        for member in guild.members:
+            for name in (member.display_name, member.name):
+                name_len = len(name)
+                # Check if there's enough characters left
+                if i + 1 + name_len > n:
+                    continue
+                # Case-insensitive exact match
+                if content[i+1:i+1+name_len].lower() == name.lower():
+                    result.append(member.mention)
+                    i += 1 + name_len  # advance past '!' + name
+                    matched = True
+                    break
+            if matched:
+                break
+
+        if not matched:
+            # No match → keep the delimiter as-is
+            result.append(content[i])
+            i += 1
+
+    return "".join(result)
 
 # Message handling
 @bot.event
