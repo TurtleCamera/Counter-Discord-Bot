@@ -531,7 +531,7 @@ async def list_command(interaction: discord.Interaction):
 # /help
 @bot.tree.command(name="help", description="Show all commands", guild=guild)
 async def help_command(interaction: discord.Interaction):
-    embed = discord.Embed(title="📜 CounterBot Commands", color=discord.Color.green())
+    embed = discord.Embed(title="CounterBot Commands", color=discord.Color.green())
     embed.add_field(name="/track <phrase>", value="Start tracking a phrase.", inline=False)
     embed.add_field(name="/untrack <phrase>", value="Stop tracking a phrase.", inline=False)
     embed.add_field(name="/set <phrase> <count>", value="Set counter.", inline=False)
