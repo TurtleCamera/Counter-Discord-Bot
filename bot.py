@@ -302,7 +302,12 @@ async def on_message(message):
                 clean_lines = original_lines
 
             if clean_lines:
-                quoted_lines = "\n".join(f"> {line}" for line in clean_lines)
+                # Escape URLs in the quote to prevent embeds
+                def escape_links(line):
+                    # Wrap any http(s) links in <>
+                    return re.sub(r'(https?://\S+)', r'<\1>', line)
+
+                quoted_lines = "\n".join(f"> {escape_links(line)}" for line in clean_lines)
                 reply_prefix = f"> {original.author.mention}\n{quoted_lines}\n"
 
         if repost_enabled:
