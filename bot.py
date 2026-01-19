@@ -239,6 +239,17 @@ async def on_message(message):
             msg_clean.lower().endswith(phrase.lower())
         )
 
+    # If shortcut expansion resulted in exactly the append phrase, skip appending
+    if append_phrase and modified:
+        def normalize_for_compare(s: str) -> str:
+            s = normalize_apostrophes(s)
+            s = re.sub(r' X\d+', '', s)      # remove counters
+            s = re.sub(r'[.!?,;:]+$', '', s) # strip trailing punctuation
+            return s.strip().lower()
+
+        if normalize_for_compare(modified) == normalize_for_compare(append_phrase):
+            skip_append = True
+
     # Apply shortcuts
     if modified:
         for shortcut, target_phrase in user_shortcuts.items():
