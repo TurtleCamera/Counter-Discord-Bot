@@ -93,6 +93,32 @@ def normalize_apostrophes(text: str) -> str:
         text = text.replace(char, "'")
     return text
 
+def escape_mentions(text: str, guild: discord.Guild) -> str:
+    """
+    Replace all mentions in text with @DisplayName, except actual reply target is handled separately.
+    """
+    def repl_user(match):
+        user_id = int(match.group(1))
+        member = guild.get_member(user_id)
+        if member:
+            return f"@{member.display_name}"
+        else:
+            return f"@UnknownUser"
+
+    def repl_role(match):
+        role_id = int(match.group(1))
+        role = guild.get_role(role_id)
+        if role:
+            return f"@{role.name}"
+        else:
+            return "@UnknownRole"
+
+    text = re.sub(r'<@!?(\d+)>', repl_user, text)
+    text = re.sub(r'<@&(\d+)>', repl_role, text)
+    text = text.replace('@everyone', '@everyone')
+    text = text.replace('@here', '@here')
+    return text
+
 # -------------- Webhooks and Messages --------------
 # Webhook management
 channel_webhooks = {}
@@ -307,7 +333,10 @@ async def on_message(message):
                     # Wrap any http(s) links in <>
                     return re.sub(r'(https?://\S+)', r'<\1>', line)
 
-                quoted_lines = "\n".join(f"> {escape_links(line)}" for line in clean_lines)
+                quoted_lines = "\n".join(
+                    f"> {escape_mentions(escape_links(line), message.guild)}"
+                    for line in clean_lines
+                )
                 reply_prefix = f"> {original.author.mention}\n{quoted_lines}\n"
 
         if repost_enabled:
