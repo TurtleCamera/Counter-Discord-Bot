@@ -225,13 +225,18 @@ async def on_message(message):
         msg = normalize_apostrophes(msg)
         phrase = normalize_apostrophes(phrase)
 
+        # Remove tracked phrase counters like " X123"
         msg_clean = re.sub(r' X\d+', '', msg)
-        pattern_start = r'^\s*' + re.escape(phrase) + r'(\s|[.!?,;:]|$)'
-        pattern_end = r'(\s|[.!?,;:]|^)' + re.escape(phrase) + r'\s*$'
 
+        # Remove leading/trailing whitespace and punctuation
+        msg_clean = msg_clean.strip()
+        msg_clean = re.sub(r'^[^\w]+', '', msg_clean)   # remove leading non-word chars
+        msg_clean = re.sub(r'[^\w]+$', '', msg_clean)   # remove trailing non-word chars
+
+        # Case-insensitive check for start or end
         return (
-            re.search(pattern_start, msg_clean, re.IGNORECASE) or
-            re.search(pattern_end, msg_clean, re.IGNORECASE)
+            msg_clean.lower().startswith(phrase.lower()) or
+            msg_clean.lower().endswith(phrase.lower())
         )
 
     # Apply shortcuts
