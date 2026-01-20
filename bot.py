@@ -257,11 +257,11 @@ async def on_message(message):
 
             def replace_func(match):
                 nonlocal skip_append
-                replacement = target_phrase
-                if target_phrase in user_phrases:
-                    if match.end() == len(modified.rstrip('.!?')):
-                        skip_append = True
-                return replacement
+                # If shortcut occurs at the start (ignoring leading punctuation/whitespace)
+                prefix = modified[:match.start()]
+                if not prefix.strip(string.punctuation + string.whitespace):
+                    skip_append = True
+                return target_phrase
 
             new_modified = re.sub(pattern, replace_func, modified, flags=re.IGNORECASE)
             if new_modified != modified:
