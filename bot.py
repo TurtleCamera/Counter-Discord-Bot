@@ -222,22 +222,24 @@ async def on_message(message):
 
     # Helper: Check if phrase at start or end
     def phrase_at_edges(msg, phrase):
+        import string
+        import re
+
+        # Normalize apostrophes
         msg = normalize_apostrophes(msg)
         phrase = normalize_apostrophes(phrase)
 
         # Remove tracked phrase counters like " X123"
-        msg_clean = re.sub(r' X\d+', '', msg)
+        msg_clean = re.sub(r' X\d+', '', msg).strip()
 
-        # Remove leading/trailing whitespace and punctuation
-        msg_clean = msg_clean.strip()
-        msg_clean = re.sub(r'^[^\w]+', '', msg_clean)   # remove leading non-word chars
-        msg_clean = re.sub(r'[^\w]+$', '', msg_clean)   # remove trailing non-word chars
+        # Strip only standard whitespace and punctuation, keep emojis and other Unicode chars
+        msg_clean = msg_clean.strip(string.whitespace + string.punctuation)
 
-        # Case-insensitive check for start or end
-        return (
-            msg_clean.lower().startswith(phrase.lower()) or
-            msg_clean.lower().endswith(phrase.lower())
-        )
+        # Case-insensitive check for phrase at start or end
+        starts = msg_clean.lower().startswith(phrase.lower())
+        ends = msg_clean.lower().endswith(phrase.lower())
+
+        return starts or ends
 
     # If shortcut expansion resulted in exactly the append phrase, skip appending
     if append_phrase and modified:
